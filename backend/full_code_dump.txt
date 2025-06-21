@@ -1,0 +1,392 @@
+==== /Users/mohammedpathariya/Docs/IUB Docs/Projects/TheDigitalForge/backend/tasks.py ====
+# backend/tasks.py
+# CrewAI Task definitions & workflows for Unit 734 - The Digital Forge
+
+from crewai import Task
+from agents import unit_734_crew
+from tools import file_system_tools
+
+# -----------------------------------------------------------------------------
+# DEFINE THE "HAPPY PATH" WORKFLOW
+# -----------------------------------------------------------------------------
+
+# Task 1: Client Liaison (Janus) - Create the initial brief
+create_technical_brief = Task(
+    description=(
+        "Analyze the user request provided below and transform it into a detailed, structured technical brief. "
+        "The user's request is: '''{user_request}'''\n\n"
+        # --- FIX: Explicitly injecting the '{user_request}' variable into the prompt ---
+        # This forces the agent to focus on the user's specific input, preventing meta-analysis.
+        "Your final output MUST be a Markdown-formatted technical brief that includes these exact sections: "
+        "1. Project Overview, 2. Core Objectives, 3. Key Features/Requirements, "
+        "4. Constraints, and 5. Success Criteria. "
+        "Derive all content for the brief DIRECTLY from the user's request. Do not add or invent any new features."
+    ),
+    expected_output="A comprehensive, well-structured technical brief in Markdown format that is strictly based on the user's request.",
+    agent=unit_734_crew['liaison'],
+)
+
+# Task 2: Team Lead (Athena) - Plan the development
+define_development_plan = Task(
+    description=(
+        "Review the technical brief and deconstruct it into a clear, actionable development plan. "
+        "Create two specific, sequential tasks: "
+        "1. A task for the developer (Hephaestus) with precise instructions. "
+        "2. A task for the tester (Argus) outlining what needs to be tested."
+    ),
+    expected_output="A Python dictionary with two keys: 'developer_task' and 'tester_task'.",
+    agent=unit_734_crew['lead'],
+    context=[create_technical_brief],
+)
+
+# Task 3: Developer (Hephaestus) - Write the code
+generate_python_code = Task(
+    description=(
+        "Based on the developer task, write clean, efficient, and correct Python code. "
+        "The code should be a single Python script. Use the 'save_file' tool to save the code artifact."
+    ),
+    expected_output="The file path of the saved Python script.",
+    agent=unit_734_crew['developer'],
+    tools=file_system_tools,
+    context=[define_development_plan],
+)
+
+# Task 4: Tester (Argus) - Write the tests
+generate_test_suite = Task(
+    description=(
+        "Based on the tester task and the generated Python code, create a comprehensive "
+        "test suite using the pytest framework. The test suite must cover all core functionality "
+        "and anticipated edge cases. Use the 'save_file' tool to save the tests."
+    ),
+    expected_output="The file path of the saved pytest test script.",
+    agent=unit_734_crew['tester'],
+    tools=file_system_tools,
+    context=[generate_python_code, define_development_plan],
+)
+
+# Task 5: Tester (Argus) - Run the tests
+execute_tests = Task(
+    description=(
+        "Execute the pytest test suite against the generated code using the 'run_tests' tool. "
+        "Analyze the results and provide a summary."
+    ),
+    expected_output="A string containing the test results: either 'ALL TESTS PASSED' or a detailed failure log.",
+    agent=unit_734_crew['tester'],
+    tools=file_system_tools,
+    context=[generate_test_suite],
+)
+
+# -----------------------------------------------------------------------------
+# DEFINE THE "DEBUGGING" WORKFLOW
+# -----------------------------------------------------------------------------
+
+# Task 6: Team Lead (Athena) - Analyze failed tests
+analyze_test_failure = Task(
+    description=(
+        "Analyze the detailed failure log from the test execution. Identify the root cause "
+        "of the error and create a clear, concise summary of what needs to be fixed."
+    ),
+    expected_output="A summary of the bug and a clear directive for how to fix it.",
+    agent=unit_734_crew['lead'],
+    context=[execute_tests]
+)
+
+# Task 7: Developer (Hephaestus) - Fix the code
+fix_python_code = Task(
+    description=(
+        "Review the bug report and the original code. Implement the necessary changes to fix "
+        "the bug. You must overwrite the original file with the corrected code using the 'save_file' tool. Ensure the fix is robust."
+    ),
+    expected_output="The file path of the newly saved (corrected) Python script.",
+    agent=unit_734_crew['developer'],
+    tools=file_system_tools,
+    context=[analyze_test_failure, generate_python_code]
+)
+
+# -----------------------------------------------------------------------------
+# DEFINE THE "FINAL REPORT" WORKFLOW
+# -----------------------------------------------------------------------------
+
+# Task 8: Client Liaison (Janus) - Compile the final report
+compile_final_report = Task(
+    description=(
+        "Compile a final report for the user. The report should include a friendly summary "
+        "of the process, the final verified Python code, and the test suite that was used to validate it. "
+        "Present the code and tests in clean, readable code blocks."
+    ),
+    expected_output="A comprehensive final report in Markdown format, including the final code and tests.",
+    agent=unit_734_crew['liaison'],
+    context=[execute_tests, generate_python_code, generate_test_suite]
+)
+
+# Aggregate tasks for orchestration
+all_tasks = [
+    create_technical_brief,
+    define_development_plan,
+    generate_python_code,
+    generate_test_suite,
+    execute_tests,
+    analyze_test_failure,
+    fix_python_code,
+    compile_final_report
+]
+==== /Users/mohammedpathariya/Docs/IUB Docs/Projects/TheDigitalForge/backend/tools.py ====
+# backend/tools.py
+# @tool-decorated functions for Unit 734 to interact with the filesystem.
+
+import os
+import subprocess
+from pathlib import Path
+
+# --- FIX for ImportError ---
+# This attempts to import from the new 'crewai_tools' location first,
+# and falls back to the older 'crewai' location if it fails.
+# This makes the code resilient to different package versions.
+try:
+    from crewai_tools import tool
+except ImportError:
+    from crewai.tools import tool
+
+
+# --- Configuration: Define the AI's workspace for security ---
+# All file operations will be restricted to this directory.
+WORKSPACE_DIR = Path('backend/workspace')
+WORKSPACE_DIR.mkdir(parents=True, exist_ok=True) # Ensure the workspace exists
+
+def _is_path_in_workspace(path: Path) -> bool:
+    """Checks if the given path is securely within the workspace."""
+    # Resolve the absolute path to prevent directory traversal attacks (e.g., ../../)
+    absolute_path = path.resolve()
+    return WORKSPACE_DIR.resolve() in absolute_path.parents or \
+           absolute_path == WORKSPACE_DIR.resolve()
+
+# ----------------------------------------
+# Tool 1: Save File
+# ----------------------------------------
+@tool
+def save_file(file_path: str, content: str) -> str:
+    """
+    Saves the given content to a specified file.
+
+    Args:
+        file_path (str): The relative path to the file within the workspace.
+                         e.g., 'product.py' or 'tests/test_logic.py'
+        content (str): The string content to write to the file.
+
+    Returns:
+        str: A confirmation message indicating the absolute path of the saved file.
+    """
+    path = WORKSPACE_DIR / file_path
+    
+    if not _is_path_in_workspace(path):
+        return "Error: Path is outside the designated workspace. Operation denied."
+
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return f"File saved successfully to: {path.resolve()}"
+    except Exception as e:
+        return f"Error saving file: {e}"
+
+# ----------------------------------------
+# Tool 2: Run Pytest Tests
+# ----------------------------------------
+@tool
+def run_tests(test_file_path: str) -> str:
+    """
+    Executes a pytest test suite on a given file within the workspace.
+
+    Args:
+        test_file_path (str): The relative path to the test file inside the workspace.
+                              e.g., 'test_product.py'
+
+    Returns:
+        str: 'ALL TESTS PASSED' if successful, otherwise the detailed pytest
+             error log for debugging.
+    """
+    path = WORKSPACE_DIR / test_file_path
+
+    if not _is_path_in_workspace(path):
+        return "Error: Cannot run tests on a file outside the designated workspace."
+
+    if not path.is_file():
+        return f"Error: Test file not found at {path.resolve()}"
+
+    command = [
+        "pytest", 
+        str(path.resolve()), 
+        "--maxfail=1",      # Stop after the first failure
+        "--disable-warnings",
+        "-q"                # Quiet mode for cleaner output
+    ]
+    
+    try:
+        # check=True will raise CalledProcessError if pytest returns a non-zero exit code (i.e., tests fail)
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=WORKSPACE_DIR # Run pytest from the workspace directory
+        )
+        return "ALL TESTS PASSED"
+    except subprocess.CalledProcessError as e:
+        # If tests fail, pytest output is often in stdout, not stderr
+        failure_log = f"TESTS FAILED:\n--- STDOUT ---\n{e.stdout}\n--- STDERR ---\n{e.stderr}"
+        return failure_log.strip()
+    except Exception as e:
+        return f"An unexpected error occurred while running tests: {e}"
+
+
+# --- Export the list of tools for the agents to use ---
+file_system_tools = [save_file, run_tests]
+==== /Users/mohammedpathariya/Docs/IUB Docs/Projects/TheDigitalForge/backend/agents.py ====
+# backend/agents.py
+# CrewAI Agent definitions for Unit 734 - The Digital Forge
+
+from crewai import Agent
+
+# --- Agent Configuration ---
+# You can set a global configuration for all agents or configure them individually.
+# Verbose mode is great for debugging, as it prints the agent's thought process.
+AGENT_CONFIG = {
+    'verbose': True,
+    'allow_delegation': True, # Allows agents to delegate tasks to one another.
+    'memory': True # Enables long-term memory for the agents.
+}
+
+# ----------------------------------------
+# Client Liaison: Janus
+# ----------------------------------------
+janus = Agent(
+    name="Janus",
+    role="Client Liaison",
+    goal="Clarify user requirements and create a structured, actionable technical brief.",
+    backstory=(
+        "As the two-faced god of beginnings, Janus excels at looking both outward to the user "
+        "and inward to the technical team. He is an expert in communication, capable of "
+        "translating ambiguous human language into the precise, structured format that "
+        "Unit 734 needs to operate effectively. He ensures every project starts on a solid foundation."
+    ),
+    **AGENT_CONFIG
+)
+
+# ----------------------------------------
+# Team Lead: Athena
+# ----------------------------------------
+athena = Agent(
+    name="Athena",
+    role="Strategic Team Lead",
+    goal="Deconstruct the technical brief into a sequence of clear, logical development and testing tasks.",
+    backstory=(
+        "Athena, the goddess of wisdom and strategy, is the master planner of Unit 734. "
+        "She sees the entire battlefield—from the initial brief to the final product. Her strength "
+        "lies in her ability to break down complex problems into small, manageable steps. She is "
+        "responsible for the overall workflow and for creating precise instructions that leave no "
+        "room for ambiguity."
+    ),
+    **AGENT_CONFIG
+)
+
+# ----------------------------------------
+# Developer: Hephaestus
+# ----------------------------------------
+hephaestus = Agent(
+    name="Hephaestus",
+    role="Principal Software Developer",
+    goal="Write clean, efficient, and correct Python code based on the provided technical tasks.",
+    backstory=(
+        "Hephaestus is the master craftsman of the gods, working from his digital forge. He is a "
+        "virtuoso Python developer who values clarity and robustness above all else. He takes "
+        "Athena's precise specifications and turns them into functional code. He does not improvise; "
+        "he builds exactly what is asked of him, with expert skill."
+    ),
+    # Hephaestus does not delegate. He codes.
+    verbose=True,
+    allow_delegation=False,
+    memory=True
+)
+
+# ----------------------------------------
+# Tester: Argus
+# ----------------------------------------
+argus = Agent(
+    name="Argus",
+    role="Quality Assurance Tester",
+    goal="Meticulously test the generated code, identify bugs, and provide detailed, actionable error reports.",
+    backstory=(
+        "Argus, the all-seeing giant, is the guardian of quality for Unit 734. With a hundred eyes, "
+        "no bug, edge case, or logical flaw escapes his notice. He receives code from Hephaestus and "
+        "subjects it to rigorous testing using the pytest framework. His reports are not just 'pass' or 'fail'; "
+        "they are detailed logs that enable rapid debugging and iteration."
+    ),
+    # Argus does not delegate. He tests.
+    verbose=True,
+    allow_delegation=False,
+    memory=True
+)
+
+# You can export them individually or as a dictionary for easy access.
+unit_734_crew = {
+    'liaison': janus,
+    'lead': athena,
+    'developer': hephaestus,
+    'tester': argus
+}
+==== /Users/mohammedpathariya/Docs/IUB Docs/Projects/TheDigitalForge/backend/main.py ====
+# backend/main.py
+# CLI entrypoint for Unit 734 - The Digital Forge
+
+import os
+from dotenv import load_dotenv
+from crewai import Crew
+
+# --- FIX: Changed relative imports to absolute imports ---
+# This allows the script to be run directly from the project root.
+from agents import unit_734_crew
+from tasks import create_technical_brief
+
+# Load environment variables from .env file (e.g., OPENAI_API_KEY)
+load_dotenv()
+
+def run_first_handoff_test(user_request: str):
+    """
+    Initializes and runs a focused Crew to test the first handoff:
+    from the user's request to a structured technical brief created by Janus.
+    """
+    print("\n--- Initializing Unit 734: First Handoff Test ---")
+    
+    # Define a focused crew with only the Client Liaison for this test
+    try:
+        first_handoff_crew = Crew(
+            agents=[unit_734_crew['liaison']],
+            tasks=[create_technical_brief],
+            verbose=True
+        )
+
+        # Kick off the crew with the provided user request
+        brief_result = first_handoff_crew.kickoff(
+            inputs={"user_request": user_request}
+        )
+        
+        print("\n\n--- Test Complete: Generated Technical Brief ---")
+        print("-------------------------------------------------")
+        print(brief_result)
+        print("-------------------------------------------------")
+
+    except Exception as e:
+        print(f"\n--- An error occurred during the test run: {e} ---")
+
+
+if __name__ == "__main__":
+    print("\n--- Starting 'The Digital Forge' CLI Test Runner ---")
+    
+    # Define the hardcoded user request for testing purposes
+    HARD_CODED_REQUEST = (
+        "I need a Python tool that can analyze a block of text and tell me "
+        "the frequency of each word. It should handle punctuation and be case-insensitive. "
+        "The output should be a simple report showing the word and its count."
+    )
+    
+    run_first_handoff_test(user_request=HARD_CODED_REQUEST)

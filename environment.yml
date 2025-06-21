@@ -1,0 +1,11 @@
+name: digitalforge
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - openai
+    - crewai-tools
+    - streamlit
+    - python-dotenv
