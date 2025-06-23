@@ -3,11 +3,6 @@
 
 from crewai import Agent
 
-# --- Agent Configuration ---
-# Setting verbose to True is great for debugging.
-# We will control delegation on a per-agent basis.
-# Memory is enabled for all agents to recall context within a run.
-
 # ----------------------------------------
 # Client Liaison: Janus
 # ----------------------------------------
@@ -22,7 +17,7 @@ janus = Agent(
         "Unit 734 needs to operate effectively. He ensures every project starts on a solid foundation."
     ),
     verbose=True,
-    allow_delegation=False, # FIX: Janus's job is to create the brief, not delegate it.
+    allow_delegation=False,
     memory=True
 )
 
@@ -41,7 +36,7 @@ athena = Agent(
         "room for ambiguity."
     ),
     verbose=True,
-    allow_delegation=False, # FIX: Athena's job is to create the plan, not delegate it.
+    allow_delegation=False,
     memory=True
 )
 
@@ -81,7 +76,7 @@ argus = Agent(
     memory=True
 )
 
-# Export agents as a dictionary for easy access.
+# Export agents as a dictionary for easy access
 unit_734_crew = {
     'liaison': janus,
     'lead': athena,

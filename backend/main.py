@@ -1,10 +1,11 @@
 # backend/main.py
 # CLI entrypoint for Unit 734 - The Digital Forge
 
+import json
+from pathlib import Path
 from dotenv import load_dotenv
 from crewai import Crew, Process
 
-# --- Local Imports ---
 from agents import unit_734_crew
 from tasks import (
     create_technical_brief,
@@ -16,16 +17,19 @@ from tasks import (
     fix_python_code,
     compile_final_report
 )
+from tools import file_system_tools
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
+# Define workspace path for file reading
+WORKSPACE_DIR = Path('backend/workspace')
+
 class DevelopmentCrew:
-    def __init__(self, user_request):
+    def __init__(self, user_request: str):
         self.user_request = user_request
 
     def run(self):
-        # Initialize agents and tasks
         agents = unit_734_crew
         tasks = {
             'brief': create_technical_brief,
@@ -35,82 +39,122 @@ class DevelopmentCrew:
             'execute_tests': execute_tests,
             'analyze_failure': analyze_test_failure,
             'fix_code': fix_python_code,
-            'final_report': compile_final_report
+            'final_report': compile_final_report,
         }
 
-        # Create the crew with a sequential process
-        project_crew = Crew(
-            agents=list(agents.values()),
-            tasks=[
-                tasks['brief'],
-                tasks['plan'],
+        # --- Step 1: Create the Technical Brief ---
+        print("\n--- Step 1: Janus is creating the Technical Brief ---")
+        brief_crew = Crew(
+            agents=[agents['liaison']],
+            tasks=[tasks['brief']],
+            verbose=True
+        )
+        brief_output = brief_crew.kickoff(inputs={'user_request': self.user_request})
+        
+        # --- THIS IS THE FIX ---
+        # Convert CrewOutput to a string before using it as input for the next task.
+        technical_brief = str(brief_output)
+        # ----------------------
+
+        print("\n--- Technical Brief Created ---\n", technical_brief)
+
+
+        # --- Step 2: Create the Development Plan ---
+        print("\n--- Step 2: Athena is creating the Development Plan ---")
+        planning_crew = Crew(
+            agents=[agents['lead']],
+            tasks=[tasks['plan']],
+            verbose=True
+        )
+        # Now, pass the clean string variable as context
+        plan_output = planning_crew.kickoff(inputs={'technical_brief': technical_brief})
+
+        # The output from a single-agent crew is the raw string, ready for parsing
+        try:
+            # Clean the string: remove ```python ... ``` and other markdown
+            clean_json_string = str(plan_output).strip().removeprefix("```python").removesuffix("```").strip()
+            development_plan = json.loads(clean_json_string)
+        except (json.JSONDecodeError, AttributeError) as e:
+            print(f"Warning: Could not parse the development plan. Error: {e}. Using raw output.")
+            # Fallback if parsing fails
+            development_plan = {
+                'developer_task': str(plan_output),
+                'tester_task': "Create a comprehensive pytest suite to validate the code based on the technical brief."
+            }
+        print("\n--- Development Plan Created ---\n", json.dumps(development_plan, indent=2))
+
+        # --- Development & Debugging Loop ---
+        max_retries = 2
+        for attempt in range(1, max_retries + 1):
+            print(f"\n--- Development Sprint: Attempt {attempt}/{max_retries} ---")
+            
+            sprint_tasks = [
                 tasks['develop'],
                 tasks['test_suite'],
                 tasks['execute_tests']
-            ],
-            process=Process.sequential,
-            verbose=True
-        )
+            ]
 
-        # Kick off the initial sprint
-        print("\n--- Starting Initial Development Sprint ---")
-        sprint_result = project_crew.kickoff(inputs={"user_request": self.user_request})
-
-        # --- FIX: Convert the CrewOutput object to a string before checking its content ---
-        sprint_output_str = str(sprint_result)
-
-        # Check if tests failed and initiate the debugging loop if necessary
-        if "FAILED" in sprint_output_str.upper():
-            print("\n--- Tests Failed. Initiating Debugging Loop ---")
-            
-            # Re-define the crew for the debugging process
-            debugging_crew = Crew(
-                agents=[agents['lead'], agents['developer'], agents['tester']],
-                tasks=[tasks['analyze_failure'], tasks['fix_code'], tasks['execute_tests']],
+            sprint_crew = Crew(
+                agents=[agents['developer'], agents['tester']],
+                tasks=sprint_tasks,
                 process=Process.sequential,
-                verbose=True
+                verbose=True,
+                memory=True
             )
-            # The context from the first crew's failure is automatically passed
-            debug_result = debugging_crew.kickoff()
-            
-            # --- FIX: Convert the debug result to a string as well ---
-            debug_output_str = str(debug_result)
+            test_results = sprint_crew.kickoff(inputs=development_plan)
+            print("\n--- Test Results ---\n", test_results)
 
-            if "ALL TESTS PASSED" in debug_output_str:
-                print("\n--- Debugging Successful. Compiling Final Report ---")
-                sprint_result = debug_result # Update result to the successful test run
+            if "ALL TESTS PASSED" in str(test_results):
+                print("\n--- All Tests Passed! Generating Final Report ---")
+
+                try:
+                    final_code = (WORKSPACE_DIR / 'product.py').read_text()
+                    final_tests = (WORKSPACE_DIR / 'test_product.py').read_text()
+                except FileNotFoundError:
+                    print("Error: Could not find product.py or test_product.py to generate report.")
+                    return
+
+                reporting_crew = Crew(
+                    agents=[agents['liaison']],
+                    tasks=[tasks['final_report']],
+                    verbose=True
+                )
+                
+                final_report = reporting_crew.kickoff(
+                    inputs={
+                        'technical_brief': technical_brief,
+                        'final_code': final_code,
+                        'final_tests': final_tests
+                    }
+                )
+                print("\n--- Final Report ---\n", str(final_report)) # Also convert final report to string
+                return
+
+            if attempt < max_retries:
+                print("\n--- Tests Failed. Running Debugging Step ---")
+                analysis_crew = Crew(
+                    agents=[agents['lead']],
+                    tasks=[tasks['analyze_failure']],
+                    verbose=True
+                )
+                bug_report = analysis_crew.kickoff(inputs={
+                    'test_failure_log': str(test_results),
+                    'developer_task': development_plan['developer_task'],
+                })
+                print("\n--- Bug Report from Athena ---\n", bug_report)
+                development_plan['developer_task'] = str(bug_report)
             else:
-                print("\n--- Debugging Failed. Could not fix the code. ---")
-                return # End the process
-
-        # If we reach here, all tests have passed.
-        print("\n--- All Tests Passed. Compiling Final Report ---")
-        
-        # We need to explicitly pass the outputs of previous tasks as context
-        # to the final reporting task. CrewAI doesn't automatically carry over
-        # all context from one crew to another.
-        tasks['final_report'].context = project_crew.tasks
-        
-        reporting_crew = Crew(
-            agents=[agents['liaison']],
-            tasks=[tasks['final_report']],
-            verbose=True
-        )
-        final_report = reporting_crew.kickoff()
-
-        print("\n\n--- Full Sprint Complete: Final Report ---")
-        print("--------------------------------------------")
-        print(final_report)
-        print("--------------------------------------------")
+                print("\n--- Maximum retries reached. Exiting. ---")
+                return
 
 if __name__ == "__main__":
     print("\n--- Starting 'The Digital Forge' CLI Runner ---")
-    
     HARD_CODED_REQUEST = (
-        "I need a Python function called `calculate_word_frequency` that takes a string of text. "
-        "The function should return a dictionary where keys are the unique words and values are their counts. "
-        "The analysis must be case-insensitive and all punctuation should be ignored. Numbers should NOT be counted as words."
+        "I need a Python function called `analyze_text` that takes a string. "
+        "It should return a dictionary of word frequencies. "
+        "The analysis must be case-insensitive. All punctuation should be ignored, "
+        "**except for apostrophes within words** (e.g., it's, user's). "
+        "Standalone numbers should be ignored."
     )
-    
-    digital_forge_crew = DevelopmentCrew(HARD_CODED_REQUEST)
-    digital_forge_crew.run()
+    crew = DevelopmentCrew(HARD_CODED_REQUEST)
+    crew.run()
