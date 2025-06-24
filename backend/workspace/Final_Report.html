@@ -1,0 +1,68 @@
+
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Final Report</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 900px; margin: 20px auto; background-color: #f9f9f9; color: #333; }
+                h1, h2, h3, h4, h5, h6 { color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
+                pre { background-color: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 8px; overflow-x: auto; }
+                code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; }
+                table { border-collapse: collapse; width: 100%; box-shadow: 0 2px 3px rgba(0,0,0,0.1); }
+                th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+                th { background-color: #3498db; color: white; }
+                tr:nth-child(even) { background-color: #f2f2f2; }
+                blockquote { background: #ecf0f1; border-left: 5px solid #3498db; margin: 20px 0; padding: 15px; }
+            </style>
+        </head>
+        <body>
+            <h1>Development Report for <code>calculate_factorial</code> Function</h1>
+<h2>Summary of Development Process</h2>
+<p>In this project, we aimed to create a Python function called <code>calculate_factorial</code> that accurately computes the factorial of a non-negative integer, as detailed in the initial brief. The development process adhered closely to the specified requirements, ensuring that the function could handle valid inputs and edge cases effectively. The function has been implemented in the <code>math_utils.py</code> file and was thoroughly tested to validate its correctness, ensuring a robust solution that meets the project's objectives.</p>
+<h2>Final Python Code for <code>calculate_factorial</code></h2>
+<p>The final implementation of the <code>calculate_factorial</code> function is as follows:</p>
+<pre><code class="language-python">def calculate_factorial(n: int) -&gt; int:
+    &quot;&quot;&quot;
+    A non-negative integer for which the factorial is to be calculated.
+    &quot;&quot;&quot;
+    if n &lt; 0:
+        raise ValueError(&quot;Input must be a non-negative integer.&quot;)
+    if n == 0:
+        return 1
+    factorial = 1
+    for i in range(1, n + 1):
+        factorial *= i
+    return factorial
+</code></pre>
+<h2>Complete Test Suite for <code>calculate_factorial</code></h2>
+<p>The following test suite validates the functionality of the <code>calculate_factorial</code> function using <code>pytest</code>:</p>
+<pre><code class="language-python">import pytest
+from math_utils import calculate_factorial
+
+def test_factorial_of_non_negative_integer_5():
+    result = calculate_factorial(5)
+    assert result == 120, f&quot;Expected 120 but got {result}&quot;
+
+def test_factorial_of_0():
+    result = calculate_factorial(0)
+    assert result == 1, f&quot;Expected 1 but got {result}&quot;
+
+def test_factorial_of_negative_integer():
+    with pytest.raises(ValueError):
+        calculate_factorial(-1)
+
+def test_factorial_of_non_negative_integer_1():
+    result = calculate_factorial(1)
+    assert result == 1, f&quot;Expected 1 but got {result}&quot;
+
+def test_factorial_of_non_negative_integer_3():
+    result = calculate_factorial(3)
+    assert result == 6, f&quot;Expected 6 but got {result}&quot;
+</code></pre>
+<h2>Conclusion</h2>
+<p>The <code>calculate_factorial</code> function has been implemented and tested, fulfilling all requirements outlined in the initial brief. The tests confirm that the function accurately computes factorials for valid inputs and correctly raises errors for invalid inputs, ensuring a reliable tool for users.</p>
+        </body>
+        </html>
+        

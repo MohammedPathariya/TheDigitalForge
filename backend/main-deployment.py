@@ -8,12 +8,17 @@ from crewai import Crew, Process
 import warnings
 import os
 import sys
+import re
+import logging
 
 # --- Configuration to Ensure Clean Execution ---
 # Suppress all warnings to keep the output pristine.
 warnings.filterwarnings("ignore")
-# Disable crewAI's telemetry to prevent connection timeout errors and hanging.
+# Disable crewAI's telemetry to prevent connection timeout errors.
 os.environ["CREWAI_TELEMETRY_ENABLED"] = "false"
+# Silence the crewAI logger to remove the raw agent "thinking" logs.
+logging.getLogger('crewAI').setLevel(logging.CRITICAL)
+
 
 # Correctly import the agent dictionary and individual tasks
 from agents import unit_734_crew
@@ -26,6 +31,8 @@ from tasks import (
     analyze_test_failure,
     compile_final_report
 )
+# Import the correct tool name 'save_report'
+from tools import save_report
 
 # Load environment variables
 load_dotenv()
@@ -43,9 +50,16 @@ class DevelopmentCrew:
         print(f"👤 Agent: {agent_name} ({role})")
         print(f"📋 Task: {task_description}")
         print("─" * 80)
-        # Clean up the raw output from the agent
-        clean_output = output.strip().replace("Final Answer:", "").strip()
-        print(clean_output)
+        # Find and print only the final answer part of the output, cleaning it up
+        match = re.search(r"Final Answer:(.*)", output, re.S)
+        if match:
+            clean_output = match.group(1).strip()
+            # Further clean up markdown code blocks if they exist
+            clean_output = re.sub(r"```[a-zA-Z]*\n", "", clean_output)
+            clean_output = clean_output.replace("```", "")
+            print(clean_output.strip())
+        else:
+            print(output.strip()) # Fallback for simple outputs
         print("─" * 80)
 
     def run(self):
@@ -98,7 +112,7 @@ class DevelopmentCrew:
             test_results = str(tester_crew.kickoff(inputs=development_plan.copy()))
             
             if "ALL TESTS PASSED" in test_results:
-                self._print_agent_output("Argus", "Quality Assurance Tester", "Create and run the test suite.", f"✅ All Tests Passed!\n\n{test_results}")
+                self._print_agent_output("Argus", "Quality Assurance Tester", "Create and run the test suite.", f"✅ All Tests Passed!")
                 break
             
             self._print_agent_output("Argus", "Quality Assurance Tester", "Create and run the test suite.", f"⚠️  Tests Failed.\n\n{test_results}")
@@ -113,7 +127,7 @@ class DevelopmentCrew:
         self._generate_final_report(technical_brief, test_results, development_plan)
 
     def _generate_final_report(self, brief, tests_output, dev_plan):
-        """Compiles and prints the final report."""
+        """Compiles and prints the final report, and saves it as Markdown and HTML."""
         print("\n\n--- [Phase 3/3] Compiling Final Report ---")
 
         final_code = "Code could not be generated or finalized."
@@ -142,11 +156,22 @@ class DevelopmentCrew:
             }
         )
         
-        print("\n\n" + "="*30 + " FINAL REPORT " + "="*30)
-        print(str(final_report))
-        print("="*74)
+        final_report_str = str(final_report)
+        self._print_agent_output("Janus", "Client Liaison", "Compile the final client-facing report.", final_report_str)
+
+        # Save the report
+        report_file_stem = "Final_Report"
+        # We need to extract just the markdown from the final report string
+        match = re.search(r"```markdown(.*)```", final_report_str, re.S)
+        markdown_content = match.group(1).strip() if match else final_report_str
+        
+        # Use the correct tool name 'save_report'
+        save_result = save_report.func(file_name_stem=report_file_stem, markdown_content=markdown_content)
+        print(f"\n📄 {save_result}")
+
         print("\n✅ Process Complete.")
-        os._exit(0) # Use os._exit for a forceful, clean exit.
+        # FIX: Use os._exit for a more forceful exit to prevent hanging threads.
+        os._exit(0)
 
 
 if __name__ == "__main__":
