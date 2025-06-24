@@ -29,6 +29,21 @@ class DevelopmentCrew:
     def __init__(self, user_request: str):
         self.user_request = user_request
 
+    def _format_task_dictionary_to_string(self, task_dict: dict) -> str:
+        """Helper function to format a task dictionary into a readable string."""
+        formatted_string = ""
+        for key, value in task_dict.items():
+            # Format keys to be more readable
+            title = key.replace('_', ' ').title()
+            if isinstance(value, list):
+                # Format lists with bullet points
+                formatted_string += f"- {title}:\n"
+                for item in value:
+                    formatted_string += f"  - {item}\n"
+            else:
+                formatted_string += f"- {title}: {value}\n"
+        return formatted_string
+
     def run(self):
         agents = unit_734_crew
         tasks = {
@@ -51,11 +66,7 @@ class DevelopmentCrew:
         )
         brief_output = brief_crew.kickoff(inputs={'user_request': self.user_request})
         
-        # --- THIS IS THE FIX ---
-        # Convert CrewOutput to a string before using it as input for the next task.
         technical_brief = str(brief_output)
-        # ----------------------
-
         print("\n--- Technical Brief Created ---\n", technical_brief)
 
 
@@ -66,52 +77,51 @@ class DevelopmentCrew:
             tasks=[tasks['plan']],
             verbose=True
         )
-        # Now, pass the clean string variable as context
         plan_output = planning_crew.kickoff(inputs={'technical_brief': technical_brief})
 
-        # The output from a single-agent crew is the raw string, ready for parsing
         try:
-            # Clean the string: remove ```python ... ``` and other markdown
-            clean_json_string = str(plan_output).strip().removeprefix("```python").removesuffix("```").strip()
+            # Clean the string: remove markdown code fences and whitespace
+            clean_json_string = str(plan_output).strip().replace("```json", "").replace("```", "").strip()
             development_plan = json.loads(clean_json_string)
         except (json.JSONDecodeError, AttributeError) as e:
-            print(f"Warning: Could not parse the development plan. Error: {e}. Using raw output.")
-            # Fallback if parsing fails
-            development_plan = {
-                'developer_task': str(plan_output),
-                'tester_task': "Create a comprehensive pytest suite to validate the code based on the technical brief."
-            }
+            print(f"Warning: Could not parse the development plan. Error: {e}. Aborting.")
+            return
+            
         print("\n--- Development Plan Created ---\n", json.dumps(development_plan, indent=2))
 
+        # --- FIX: Convert complex task objects to simple, readable strings ---
+        # This prevents ambiguity and ensures the developer/tester agents get clear instructions.
+        if isinstance(development_plan.get('developer_task'), dict):
+            development_plan['developer_task'] = self._format_task_dictionary_to_string(development_plan['developer_task'])
+        
+        if isinstance(development_plan.get('tester_task'), dict):
+            development_plan['tester_task'] = self._format_task_dictionary_to_string(development_plan['tester_task'])
+
         # --- Development & Debugging Loop ---
-        max_retries = 2
+        max_retries = 3 # Increased retries to allow for more complex debugging.
         for attempt in range(1, max_retries + 1):
             print(f"\n--- Development Sprint: Attempt {attempt}/{max_retries} ---")
             
-            sprint_tasks = [
-                tasks['develop'],
-                tasks['test_suite'],
-                tasks['execute_tests']
-            ]
-
+            # The sprint crew now receives string-based tasks
             sprint_crew = Crew(
                 agents=[agents['developer'], agents['tester']],
-                tasks=sprint_tasks,
+                tasks=[tasks['develop'], tasks['test_suite'], tasks['execute_tests']],
                 process=Process.sequential,
                 verbose=True,
                 memory=True
             )
-            test_results = sprint_crew.kickoff(inputs=development_plan)
+            
+            test_results = sprint_crew.kickoff(inputs=development_plan.copy())
             print("\n--- Test Results ---\n", test_results)
 
             if "ALL TESTS PASSED" in str(test_results):
                 print("\n--- All Tests Passed! Generating Final Report ---")
 
                 try:
-                    final_code = (WORKSPACE_DIR / 'product.py').read_text()
-                    final_tests = (WORKSPACE_DIR / 'test_product.py').read_text()
+                    final_code = (WORKSPACE_DIR / development_plan['file_name']).read_text()
+                    final_tests = (WORKSPACE_DIR / development_plan['test_file_name']).read_text()
                 except FileNotFoundError:
-                    print("Error: Could not find product.py or test_product.py to generate report.")
+                    print(f"Error: Could not find {development_plan['file_name']} or {development_plan['test_file_name']} to generate report.")
                     return
 
                 reporting_crew = Crew(
@@ -124,10 +134,12 @@ class DevelopmentCrew:
                     inputs={
                         'technical_brief': technical_brief,
                         'final_code': final_code,
-                        'final_tests': final_tests
+                        'final_tests': final_tests,
+                        'file_name': development_plan['file_name'],
+                        'test_file_name': development_plan['test_file_name']
                     }
                 )
-                print("\n--- Final Report ---\n", str(final_report)) # Also convert final report to string
+                print("\n--- Final Report ---\n", str(final_report))
                 return
 
             if attempt < max_retries:
@@ -142,19 +154,23 @@ class DevelopmentCrew:
                     'developer_task': development_plan['developer_task'],
                 })
                 print("\n--- Bug Report from Athena ---\n", bug_report)
+                # Update the developer task with the new instructions for the next loop.
                 development_plan['developer_task'] = str(bug_report)
             else:
-                print("\n--- Maximum retries reached. Exiting. ---")
+                print(f"\n--- Maximum retries ({max_retries}) reached. Exiting. ---")
                 return
 
 if __name__ == "__main__":
     print("\n--- Starting 'The Digital Forge' CLI Runner ---")
     HARD_CODED_REQUEST = (
-        "I need a Python function called `analyze_text` that takes a string. "
-        "It should return a dictionary of word frequencies. "
-        "The analysis must be case-insensitive. All punctuation should be ignored, "
-        "**except for apostrophes within words** (e.g., it's, user's). "
-        "Standalone numbers should be ignored."
+        "I need a Python function called `validate_email` that takes one string argument "
+        "and returns `True` if the string is a valid email format, otherwise `False`. "
+        "For a string to be considered a valid email, it must satisfy ALL of the following rules:\n"
+        "1. It must contain exactly one '@' symbol.\n"
+        "2. It must have at least one character before the '@' symbol (the local part).\n"
+        "3. The domain part (after the '@') must contain at least one '.' character.\n"
+        "4. The domain part must not start or end with a '.' character.\n"
+        "5. The top-level domain (the part after the last '.') must have at least two characters."
     )
     crew = DevelopmentCrew(HARD_CODED_REQUEST)
     crew.run()
