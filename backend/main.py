@@ -163,14 +163,10 @@ class DevelopmentCrew:
 if __name__ == "__main__":
     print("\n--- Starting 'The Digital Forge' CLI Runner ---")
     HARD_CODED_REQUEST = (
-        "I need a Python function called `validate_email` that takes one string argument "
-        "and returns `True` if the string is a valid email format, otherwise `False`. "
-        "For a string to be considered a valid email, it must satisfy ALL of the following rules:\n"
-        "1. It must contain exactly one '@' symbol.\n"
-        "2. It must have at least one character before the '@' symbol (the local part).\n"
-        "3. The domain part (after the '@') must contain at least one '.' character.\n"
-        "4. The domain part must not start or end with a '.' character.\n"
-        "5. The top-level domain (the part after the last '.') must have at least two characters."
+         "I need a Python function called `calculate_factorial` that takes a non-negative integer "
+        "and returns its factorial. It should be in a file named `math_utils.py`. "
+        "The function should handle the edge case of 0 (factorial of 0 is 1) and should raise a "
+        "`ValueError` for negative numbers."
     )
     crew = DevelopmentCrew(HARD_CODED_REQUEST)
     crew.run()
