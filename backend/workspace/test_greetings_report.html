@@ -1,0 +1,54 @@
+
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Test Greetings Report</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 900px; margin: 20px auto; background-color: #f9f9f9; color: #333; }
+                h1, h2, h3, h4, h5, h6 { color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
+                pre { background-color: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 8px; overflow-x: auto; }
+                code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; }
+                table { border-collapse: collapse; width: 100%; box-shadow: 0 2px 3px rgba(0,0,0,0.1); }
+                th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+                th { background-color: #3498db; color: white; }
+                tr:nth-child(even) { background-color: #f2f2f2; }
+                blockquote { background: #ecf0f1; border-left: 5px solid #3498db; margin: 20px 0; padding: 15px; }
+            </style>
+        </head>
+        <body>
+            <h1>Test Results Report</h1>
+<h2>Summary</h2>
+<p><strong>Test Outcomes:</strong></p>
+<ul>
+<li><strong>Total Tests:</strong> 1</li>
+<li><strong>Passed:</strong> 0</li>
+<li><strong>Failed:</strong> 1</li>
+</ul>
+<h2>Failure Log</h2>
+<h3>Error Details:</h3>
+<ul>
+<li><strong>Test File:</strong> test_greetings.py</li>
+<li><strong>Error:</strong> ImportError while importing test module.</li>
+<li><strong>Message:</strong> cannot import name 'greet' from 'greetings'.</li>
+<li><strong>Hint:</strong> make sure your test modules/packages have valid Python names.</li>
+<li><strong>Traceback:</strong></li>
+</ul>
+<pre><code>../../../../../../anaconda3/envs/digitalforge/lib/python3.10/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+test_greetings.py:2: in &lt;module&gt;
+    from greetings import greet  # Assuming the function greet is defined in greetings.py
+E   ImportError: cannot import name 'greet' from 'greetings' (/Users/mohammedpathariya/Docs/IUB Docs/Projects/TheDigitalForge/backend/workspace/greetings.py)
+</code></pre>
+<ul>
+<li><strong>Short Test Summary Info:</strong>
+    ERROR test_greetings.py
+    !!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!</li>
+</ul>
+<h2>Conclusion</h2>
+<p>This issue needs to be resolved before any further testing can continue.</p>
+        </body>
+        </html>
+        

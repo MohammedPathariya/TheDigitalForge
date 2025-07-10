@@ -13,7 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from crewai import Crew, Process
 
-# --- Determine project root and load .env ---
+# --- MOVED: Determine project root and load .env ---
 ROOT_DIR = Path(__file__).resolve().parent.parent
 dotenv_path = ROOT_DIR / '.env'
 if dotenv_path.exists():
@@ -44,121 +44,78 @@ from tasks import (
 )
 from tools import save_report
 
-# Define workspace path for file reading
-WORKSPACE_DIR = ROOT_DIR / 'backend' / 'workspace'
+# --- This will now work correctly ---
+WORKSPACE_DIR = ROOT_DIR / 'workspace'
 
 class DevelopmentCrew:
     def __init__(self, user_request: str):
         self.user_request = user_request
-
-    def _print_agent_output(self, agent_name: str, role: str, task_description: str, output):
-        """Prints the output of an agent's task in a structured and readable format without assuming any specific format."""
-        output_str = str(output)
-        divider = "─" * 80
-        print(f"\n\n{divider}")
-        print(f"👤 Agent: {agent_name} ({role})")
-        print(f"📋 Task: {task_description}")
-        print(divider)
-        # Simply print the full output to preserve all formats
-        print(output_str)
-        print(divider)
+        self.verbose = False # Set to False for cleaner CLI logs
 
     def run(self) -> str:
         """
-        Runs the development crew process and returns the final client-facing report in Markdown.
+        Runs the full development and testing pipeline.
+        It will always generate a final report after the process is complete, regardless of test outcomes.
         """
-        # Phase 1: Planning & Scoping
+        # Phase 1: Planning
+        print("👤 [Janus] Creating technical brief...")
         brief_crew = Crew(
             agents=[unit_734_crew['liaison']],
             tasks=[create_technical_brief],
-            verbose=True
+            verbose=self.verbose
         )
-        try:
-            technical_brief = brief_crew.kickoff(inputs={'user_request': self.user_request})
-        except Exception as e:
-            raise RuntimeError(f"Failed during technical brief generation: {e}")
-        self._print_agent_output(
-            "Janus", "Client Liaison",
-            "Create a technical brief from the user request.",
-            technical_brief
-        )
+        technical_brief = brief_crew.kickoff(inputs={'user_request': self.user_request})
+        print("✅ [Janus] Technical brief created.")
 
-        # Phase 1b: Development Plan
+        print("\n👤 [Athena] Creating development plan...")
         planning_crew = Crew(
             agents=[unit_734_crew['lead']],
             tasks=[define_development_plan],
-            verbose=True
+            verbose=self.verbose
         )
-        try:
-            plan_output = planning_crew.kickoff(inputs={'technical_brief': str(technical_brief)})
-            clean_json = str(plan_output).strip().replace("```json", "").replace("```", "").strip()
-            development_plan = json.loads(clean_json)
-        except Exception as e:
-            raise RuntimeError(f"Failed during development plan generation: {e}")
-        self._print_agent_output(
-            "Athena", "Strategic Team Lead",
-            "Create a detailed development plan.",
-            json.dumps(development_plan, indent=2)
-        )
+        plan_output = planning_crew.kickoff(inputs={'technical_brief': str(technical_brief)})
+        clean_json = str(plan_output).strip().replace("```json", "").replace("```", "").strip()
+        development_plan = json.loads(clean_json)
+        print("✅ [Athena] Development plan created.")
 
-        # Phase 2: Development & Debugging
-        test_results = None
+        # Phase 2: Development & Debugging Loop
+        test_results = ""
         max_retries = 3
         for attempt in range(1, max_retries + 1):
             print(f"\n🚀 Sprint Attempt {attempt}/{max_retries}...")
-            # Code generation
-            developer_crew = Crew(
-                agents=[unit_734_crew['developer']],
-                tasks=[generate_python_code],
-                verbose=True
-            )
-            try:
-                code_output = developer_crew.kickoff(inputs=development_plan.copy())
-            except Exception as e:
-                raise RuntimeError(f"Failed during code generation: {e}")
-            self._print_agent_output(
-                "Hephaestus", "Principal Software Developer",
-                "Write the Python code.", code_output
-            )
+            
+            print("👤 [Hephaestus] Writing Python code...")
+            developer_crew = Crew(agents=[unit_734_crew['developer']], tasks=[generate_python_code], verbose=self.verbose)
+            developer_crew.kickoff(inputs=development_plan.copy())
+            print("✅ [Hephaestus] Code saved to workspace.")
 
-            # Test generation & execution
+            print("👤 [Argus] Writing and running tests...")
             tester_crew = Crew(
                 agents=[unit_734_crew['tester']],
                 tasks=[generate_test_suite, execute_tests],
                 process=Process.sequential,
-                verbose=True
+                verbose=self.verbose
             )
-            try:
-                test_results = tester_crew.kickoff(inputs=development_plan.copy())
-            except Exception as e:
-                raise RuntimeError(f"Failed during test execution: {e}")
-            self._print_agent_output(
-                "Argus", "Quality Assurance Tester",
-                "Create and run the test suite.", test_results
-            )
-            if isinstance(test_results, str) and "ALL TESTS PASSED" in test_results:
-                break
-
-            # If tests failed, analyze and retry
+            test_results = tester_crew.kickoff(inputs=development_plan.copy())
+            
+            if "ALL TESTS PASSED" in str(test_results):
+                print("✅ [Argus] All tests passed!")
+                break  # Exit the loop on success
+            
+            print(f"❌ [Argus] Tests failed on attempt {attempt}.")
             if attempt < max_retries:
-                analysis_crew = Crew(
-                    agents=[unit_734_crew['lead']],
-                    tasks=[analyze_test_failure],
-                    verbose=True
-                )
+                print("👤 [Athena] Analyzing failure for next sprint...")
+                analysis_crew = Crew(agents=[unit_734_crew['lead']], tasks=[analyze_test_failure], verbose=self.verbose)
                 bug_report = analysis_crew.kickoff(
-                    inputs={
-                        'test_failure_log': str(test_results),
-                        'developer_task': development_plan['developer_task']
-                    }
-                )
-                self._print_agent_output(
-                    "Athena", "Strategic Team Lead",
-                    "Analyze test failures and create a bug report.", bug_report
+                    inputs={'test_failure_log': str(test_results), 'developer_task': development_plan['developer_task']}
                 )
                 development_plan['developer_task'] = str(bug_report)
+                print("✅ [Athena] New task created for developer.")
+            else:
+                print("⚠️ Reached max attempts. Proceeding to final report.")
 
-        # Phase 3: Compiling Final Report
+        # Phase 3: Final Reporting (Always runs)
+        print("\n✅ Development cycles complete. Compiling final report...")
         return self._generate_final_report(
             brief=str(technical_brief),
             tests_output=str(test_results),
@@ -167,60 +124,61 @@ class DevelopmentCrew:
 
     def _generate_final_report(self, brief: str, tests_output: str, dev_plan: dict) -> str:
         """
-        Compiles the final report in Markdown and saves it to disk. Returns the Markdown content.
+        Compiles and saves the final report, indicating the final outcome.
         """
-        # Read final code and tests
+        final_outcome_summary = (
+            "All tests passed successfully." if "ALL TESTS PASSED" in tests_output 
+            else "Process completed with failing tests. The code below is the latest iteration and may not be fully functional."
+        )
+
         try:
             final_code = (WORKSPACE_DIR / dev_plan['file_name']).read_text()
         except Exception:
-            final_code = "Code could not be generated or finalized."
+            final_code = "Error: Code could not be read from the workspace."
         try:
             final_tests = (WORKSPACE_DIR / dev_plan['test_file_name']).read_text()
         except Exception:
-            final_tests = "Tests could not be generated or finalized."
+            final_tests = "Error: Tests could not be read from the workspace."
 
-        # Compile report
         reporting_crew = Crew(
             agents=[unit_734_crew['liaison']],
             tasks=[compile_final_report],
-            verbose=True
+            verbose=self.verbose
         )
+        
+        # Pass all necessary context to the reporting task
         raw_report = reporting_crew.kickoff(
             inputs={
                 'technical_brief': brief,
                 'final_code': final_code,
                 'final_tests': final_tests,
                 'test_results': tests_output,
-                'final_outcome_summary': (
-                    "All tests passed successfully." if "ALL TESTS PASSED" in tests_output else "Process completed with failing tests."
-                ),
+                'final_outcome_summary': final_outcome_summary,
                 'file_name': dev_plan.get('file_name', 'N/A'),
                 'test_file_name': dev_plan.get('test_file_name', 'N/A')
             }
         )
+        
+        print("\n---FINAL_REPORT---") # Separator for the frontend
+        
         raw_report_str = str(raw_report)
         match = re.search(r"```markdown(.*)```", raw_report_str, re.S)
         markdown_content = match.group(1).strip() if match else raw_report_str
-
-        # Save report
+        
         save_report.func(file_name_stem="Final_Report", markdown_content=markdown_content)
-
         return markdown_content
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Digital Forge pipeline")
-    parser.add_argument(
-        "request",
-        type=str,
-        help="The user request to turn into code+tests",
-    )
+    parser.add_argument("request", type=str, help="The user request to turn into code+tests")
     args = parser.parse_args()
     crew = DevelopmentCrew(args.request)
     try:
-        report_md = crew.run()
-        print(report_md)
-    except Exception:
-        print("Error during pipeline execution:")
+        final_report = crew.run()
+        print(final_report)
+    except Exception as e:
+        print("\n---ERROR---")
+        print("A critical error occurred during the pipeline execution:")
         traceback.print_exc()
         sys.exit(1)

@@ -128,13 +128,15 @@ compile_final_report = Task(
     description=(
         "Compile a final, client-facing report in Markdown format. The report must be professional and easy to understand.\n"
         "It should include a friendly summary of the development process, referencing the initial brief.\n\n"
-        "Crucially, it MUST include the final, verified Python code from '{file_name}' and the complete test suite from '{test_file_name}' that was used to validate it. "
-        "Present the code and tests in clean, readable Python code blocks.\n\n"
-        "Use the provided context. Do NOT invent new code or results.\n\n"
+        "**CRITICAL**: You MUST add a new section at the end titled '## Final Outcome'.\n"
+        "Under this section, first state the summary provided in '{final_outcome_summary}'.\n"
+        "If the tests failed, you MUST then include the complete, multi-line failure log from '{test_results}' inside a Python code block.\n\n"
+        "Finally, present the final, verified Python code from '{file_name}' and the complete test suite from '{test_file_name}' in clean, readable Python code blocks.\n\n"
+        "Use all the provided context. Do NOT invent new code or results.\n\n"
         "Initial Brief:\n'''\n{technical_brief}\n'''\n\n"
         "Final Code:\n'''\n{final_code}\n'''\n\n"
         "Test Suite:\n'''\n{final_tests}\n'''"
     ),
-    expected_output="A comprehensive final report in Markdown format, including a summary, the final code, and the complete test suite.",
+    expected_output="A comprehensive final report in Markdown format, including a summary, the final outcome, the final code, and the complete test suite.",
     agent=unit_734_crew['liaison'],
 )
