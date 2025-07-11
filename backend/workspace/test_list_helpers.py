@@ -1,22 +1,21 @@
 import pytest
-from list_helpers import find_max  # Adjust the import based on your actual function
+from list_helpers import find_max
 
-def test_valid_input_with_mixed_numbers():
-    input_data = [3, 1.5, 2, 4.7]
-    expected_output = 4.7
-    assert find_max(input_data) == expected_output
+class TestFindMax:
+    def test_valid_non_empty_list(self):
+        assert find_max([1, 2, 3, 4, 5]) == 5
 
-def test_valid_input_with_negative_and_positive_numbers():
-    input_data = [-1, -5, -3]
-    expected_output = -1
-    assert find_max(input_data) == expected_output
+    def test_valid_non_empty_list_with_floats(self):
+        assert find_max([1.1, 2.2, 3.3]) == 3.3
 
-def test_valid_input_with_single_element():
-    input_data = [42]
-    expected_output = 42
-    assert find_max(input_data) == expected_output
+    def test_list_with_integers_and_floats(self):
+        assert find_max([1, 5.5, 2]) == 5.5
 
-def test_empty_input_list():
-    input_data = []
-    expected_output = None
-    assert find_max(input_data) == expected_output
+    def test_empty_list(self):
+        assert find_max([]) == None
+
+    def test_list_with_one_number(self):
+        assert find_max([42]) == 42
+
+    def test_list_with_negative_numbers(self):
+        assert find_max([-1, -5, -3]) == -1

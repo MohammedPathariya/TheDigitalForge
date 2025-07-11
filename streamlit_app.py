@@ -1,5 +1,3 @@
-# streamlit_app.py
-
 import streamlit as st
 import subprocess
 import sys
@@ -53,10 +51,7 @@ st.markdown("""
 # --- Helper function for styled status updates ---
 def styled_status(icon, text, status="pending"):
     return f"""
-    <div class="status-box status-box-{status}">
-        <div class="status-icon">{icon}</div>
-        <div>{text}</div>
-    </div>
+    <div class=\"status-box status-box-{status}\">\n        <div class=\"status-icon\">{icon}</div>\n        <div>{text}</div>\n    </div>
     """
 
 # --- Initialize Session State ---
@@ -74,7 +69,6 @@ st.divider()
 
 # --- Main Layout (Two Columns) ---
 col1, col2 = st.columns([1, 1.2], gap="large")
-
 with col1:
     st.subheader("1. Your Request")
     user_request = st.text_area(
@@ -82,9 +76,7 @@ with col1:
         height=200,
         placeholder="e.g., I need a Python function called `calculate_sum` in a file named `math_utils.py` that takes a list of numbers and returns their sum."
     )
-
     start_button = st.button("Start Forging", type="primary", use_container_width=True)
-
 with col2:
     st.subheader("2. Pipeline Status")
     status_area = st.container(height=400)
@@ -94,22 +86,49 @@ if start_button:
     if not user_request.strip():
         st.warning("Please enter a request before starting the forge.")
     else:
-        # Reset state for a new run
         st.session_state.pipeline_run_details = {
             "output": [],
             "status": "running",
             "return_code": None,
-            "user_request": user_request # Store the request
+            "user_request": user_request
         }
-        st.rerun() # Rerun to start the process
+        st.rerun()
 
 # --- Main display logic based on session state ---
-if st.session_state.pipeline_run_details.get("status") == "running":
+status = st.session_state.pipeline_run_details.get("status")
+
+# Render pipeline status for both running and completed states
+def render_status():
+    with status_area:
+        # Replay stored output on completed
+        if status == "completed":
+            for line in st.session_state.pipeline_run_details.get("output", []):
+                cleaned = line.strip()
+                if not cleaned:
+                    continue
+                if "DONE: Janus: Clarifying" in cleaned:
+                    st.markdown(styled_status("✅", "Janus has clarified the requirements.", "success"), unsafe_allow_html=True)
+                elif "DONE: Athena: Deconstructing" in cleaned:
+                    st.markdown(styled_status("✅", "Athena has structured the development plan.", "success"), unsafe_allow_html=True)
+                elif "DONE: Hephaestus: Writing" in cleaned:
+                    st.markdown(styled_status("✅", "Hephaestus has finished the code.", "success"), unsafe_allow_html=True)
+                elif "DONE: Argus: Creating" in cleaned:
+                    st.markdown(styled_status("✅", "Argus confirmed all tests passed.", "success"), unsafe_allow_html=True)
+                elif "DONE: Athena: Analyzing" in cleaned:
+                    st.markdown(styled_status("✅", "Athena has created a bug report.", "success"), unsafe_allow_html=True)
+                elif "START: Janus: Compiling" in cleaned:
+                    st.markdown(styled_status("📄", "Janus is now building the final report...", "working"), unsafe_allow_html=True)
+                elif "DONE: Janus: Compiling" in cleaned or "---FINAL_REPORT---" in cleaned:
+                    st.markdown(styled_status("✅", "Janus has created the final report.", "success"), unsafe_allow_html=True)
+
+if status in ("running", "completed"):
+    render_status()
+
+# --- Running logic ---
+if status == "running":
     with status_area:
         placeholders = {}
         sprint_attempt = 1
-        
-        # Retrieve the user request from session state
         current_request = st.session_state.pipeline_run_details.get("user_request", "")
 
         try:
@@ -126,7 +145,6 @@ if st.session_state.pipeline_run_details.get("status") == "running":
                 cleaned_line = line.strip()
                 if not cleaned_line:
                     continue
-                
                 st.session_state.pipeline_run_details["output"].append(cleaned_line)
 
                 # --- Update Status Placeholders ---
@@ -169,6 +187,8 @@ if st.session_state.pipeline_run_details.get("status") == "running":
                 elif "START: Janus: Compiling" in cleaned_line:
                     placeholders["janus_report"] = st.empty()
                     placeholders["janus_report"].markdown(styled_status("📄", "Janus is now building the final report...", "working"), unsafe_allow_html=True)
+                elif "DONE: Janus: Compiling" in cleaned_line or "---FINAL_REPORT---" in cleaned_line:
+                    placeholders["janus_report"].markdown(styled_status("✅", "Janus has created the final report.", "success"), unsafe_allow_html=True)
 
             process.wait()
             st.session_state.pipeline_run_details["return_code"] = process.returncode
@@ -179,19 +199,18 @@ if st.session_state.pipeline_run_details.get("status") == "running":
             st.error(f"A critical error occurred: {e}")
             st.session_state.pipeline_run_details["status"] = "error"
 
-elif st.session_state.pipeline_run_details.get("status") == "completed":
-    final_output_str = "\n".join(st.session_state.pipeline_run_details["output"])
-    
-    # --- Display Final Report (Full Width) ---
+# --- Completed state: Final report display ---
+elif status == "completed":
+    final_output_str = "\n".join(st.session_state.pipeline_run_details.get("output", []))
     st.divider()
     st.subheader("3. Final Report")
 
-    if "---ERROR---" in final_output_str or st.session_state.pipeline_run_details["return_code"] != 0:
+    if "---ERROR---" in final_output_str or st.session_state.pipeline_run_details.get("return_code") != 0:
         st.error("Pipeline execution failed.")
     elif "---FINAL_REPORT---" in final_output_str:
         st.success("✔️ The pipeline has finished. See the report below.")
         _, report_content = final_output_str.split("---FINAL_REPORT---", 1)
-        
+
         # Extract code and filename for download
         py_code_match = re.search(r"```python\n# (.*?\.py)\n(.*?)```", report_content, re.S)
         py_code = ""
@@ -223,9 +242,9 @@ elif st.session_state.pipeline_run_details.get("status") == "completed":
         st.markdown(report_content.strip(), unsafe_allow_html=True)
     else:
         st.warning("Pipeline finished, but no final report was generated.")
-    
+
     with st.expander("Show Full Execution Log"):
-        st.code("\n".join(st.session_state.pipeline_run_details["output"]), language="log")
+        st.code("\n".join(st.session_state.pipeline_run_details.get("output", [])), language="log")
 
 # --- Footer ---
 st.divider()

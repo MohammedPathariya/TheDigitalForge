@@ -1,9 +1,4 @@
-def find_max(lst):
-    """Returns the maximum value from a list."""
-    if not lst:
-        return None  # Handle empty list case
-    max_value = lst[0]
-    for num in lst:
-        if num > max_value:
-            max_value = num
-    return max_value
+def find_max(num_list):
+    if not num_list:
+        return None
+    return max(num_list)
