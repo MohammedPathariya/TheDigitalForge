@@ -1,1 +1,0 @@
-def analyze_text(text):\n    '''Analyzes the input text and returns a dictionary with various metrics.'''\n    if not text: return {}\n    word_count = len(text.split())\n    char_count = len(text)\n    unique_words = len(set(text.split()))\n    return {'word_count': word_count, 'char_count': char_count, 'unique_words': unique_words}
