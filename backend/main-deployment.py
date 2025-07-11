@@ -13,7 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from crewai import Crew, Process
 
-# --- MOVED: Determine project root and load .env ---
+# --- Determine project root and load .env ---
 ROOT_DIR = Path(__file__).resolve().parent.parent
 dotenv_path = ROOT_DIR / '.env'
 if dotenv_path.exists():
@@ -45,7 +45,7 @@ from tasks import (
 from tools import save_report
 
 # --- This will now work correctly ---
-WORKSPACE_DIR = ROOT_DIR / 'workspace'
+WORKSPACE_DIR = ROOT_DIR / 'backend' / 'workspace'
 
 class DevelopmentCrew:
     def __init__(self, user_request: str):
@@ -58,16 +58,16 @@ class DevelopmentCrew:
         It will always generate a final report after the process is complete, regardless of test outcomes.
         """
         # Phase 1: Planning
-        print("👤 [Janus] Creating technical brief...")
+        print("START: Janus: Clarifying requirements...")
         brief_crew = Crew(
             agents=[unit_734_crew['liaison']],
             tasks=[create_technical_brief],
             verbose=self.verbose
         )
         technical_brief = brief_crew.kickoff(inputs={'user_request': self.user_request})
-        print("✅ [Janus] Technical brief created.")
+        print("DONE: Janus: Clarifying requirements.")
 
-        print("\n👤 [Athena] Creating development plan...")
+        print("START: Athena: Deconstructing the brief...")
         planning_crew = Crew(
             agents=[unit_734_crew['lead']],
             tasks=[define_development_plan],
@@ -76,20 +76,18 @@ class DevelopmentCrew:
         plan_output = planning_crew.kickoff(inputs={'technical_brief': str(technical_brief)})
         clean_json = str(plan_output).strip().replace("```json", "").replace("```", "").strip()
         development_plan = json.loads(clean_json)
-        print("✅ [Athena] Development plan created.")
+        print("DONE: Athena: Deconstructing the brief.")
 
         # Phase 2: Development & Debugging Loop
         test_results = ""
         max_retries = 3
         for attempt in range(1, max_retries + 1):
-            print(f"\n🚀 Sprint Attempt {attempt}/{max_retries}...")
-            
-            print("👤 [Hephaestus] Writing Python code...")
+            print(f"START: Hephaestus: Writing Python code (Attempt {attempt})...")
             developer_crew = Crew(agents=[unit_734_crew['developer']], tasks=[generate_python_code], verbose=self.verbose)
             developer_crew.kickoff(inputs=development_plan.copy())
-            print("✅ [Hephaestus] Code saved to workspace.")
+            print(f"DONE: Hephaestus: Writing Python code (Attempt {attempt}).")
 
-            print("👤 [Argus] Writing and running tests...")
+            print(f"START: Argus: Creating and running tests (Attempt {attempt})...")
             tester_crew = Crew(
                 agents=[unit_734_crew['tester']],
                 tasks=[generate_test_suite, execute_tests],
@@ -99,23 +97,23 @@ class DevelopmentCrew:
             test_results = tester_crew.kickoff(inputs=development_plan.copy())
             
             if "ALL TESTS PASSED" in str(test_results):
-                print("✅ [Argus] All tests passed!")
-                break  # Exit the loop on success
+                print(f"DONE: Argus: Creating and running tests (Attempt {attempt}).")
+                break
             
-            print(f"❌ [Argus] Tests failed on attempt {attempt}.")
+            print("FAIL: Argus: Tests failed.")
             if attempt < max_retries:
-                print("👤 [Athena] Analyzing failure for next sprint...")
+                print("START: Athena: Analyzing test failure...")
                 analysis_crew = Crew(agents=[unit_734_crew['lead']], tasks=[analyze_test_failure], verbose=self.verbose)
                 bug_report = analysis_crew.kickoff(
                     inputs={'test_failure_log': str(test_results), 'developer_task': development_plan['developer_task']}
                 )
                 development_plan['developer_task'] = str(bug_report)
-                print("✅ [Athena] New task created for developer.")
+                print("DONE: Athena: Analyzing test failure.")
             else:
-                print("⚠️ Reached max attempts. Proceeding to final report.")
+                print("FAIL: Reached max attempts. Proceeding to final report.")
 
         # Phase 3: Final Reporting (Always runs)
-        print("\n✅ Development cycles complete. Compiling final report...")
+        print("START: Janus: Compiling the final report...")
         return self._generate_final_report(
             brief=str(technical_brief),
             tests_output=str(test_results),

@@ -18,46 +18,64 @@
             </style>
         </head>
         <body>
-            <h1>Client-Facing Report: Implementation of <code>get_greeting</code> Function</h1>
-<h2>Summary of Development Process</h2>
-<p>The development process for the <code>get_greeting</code> function was streamlined and focused on meeting the requirements set forth in the initial brief. The main objectives were to implement a function that generates personalized greeting messages based on user input while ensuring that a special case for the name 'Admin' is properly handled. Our team adhered to the technical constraints and success criteria laid out in the brief, leading to a robust implementation.</p>
-<p>Throughout the development phase, we maintained clear communication, iterating on the function design to ensure all edge cases were considered. Test cases were executed to validate the functionality and performance of the <code>get_greeting</code> function.</p>
+            <h1>Client-Facing Report: <code>calculate_average</code> Function Development</h1>
+<h2>Summary of the Development Process</h2>
+<p>In the course of this project, we aimed to develop a Python function, <code>calculate_average</code>, designed to compute the average value from a list of numbers. Our initial brief outlined the objectives and requirements, including proper error handling for empty lists and ensuring syntactic correctness.</p>
+<p>The development was carried out as planned, with the core function implemented according to specifications. However, we encountered some issues with the testing phase, which led to failed tests. Below are the details of the outcome and relevant code.</p>
 <h2>Final Outcome</h2>
-<p>All tests passed successfully.</p>
+<p>Process completed with failing tests. The code below is the latest iteration and may not be fully functional.</p>
+<pre><code class="language-plaintext">TESTS FAILED:
+--- STDOUT ---
+
+==================================== ERRORS ====================================
+____________________ ERROR collecting test_math_helpers.py _____________________
+ImportError while importing test module '/Users/mohammedpathariya/Docs/IUB Docs/Projects/TheDigitalForge/backend/workspace/test_math_helpers.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../../../anaconda3/envs/digitalforge/lib/python3.10/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level], package, level)
+test_math_helpers.py:2: in &lt;module&gt;
+    from math_helpers import your_function_name
+E   ImportError: cannot import name 'your_function_name' from 'math_helpers' (/Users/mohammedpathariya/Docs/IUB Docs/Projects/TheDigitalForge/backend/workspace/math_helpers.py)
+=========================== short test summary info ============================
+ERROR test_math_helpers.py
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.11s
+
+--- STDERR --- 
+</code></pre>
 <h3>Final Code</h3>
-<pre><code class="language-python"># greetings.py
-
-def get_greeting(name: str) -&gt; str:
-    if name == &quot;Admin&quot;:
-        return &quot;Welcome, Admin!&quot;
-    return f&quot;Hello, {name}!&quot;
+<p>Here is the final implemented code for the <code>calculate_average</code> function in <code>math_helpers.py</code>:</p>
+<pre><code class="language-python">def calculate_average(numbers):
+    if not numbers:
+        raise ValueError(&quot;Input list cannot be empty&quot;)
+    return sum(numbers) / len(numbers)
 </code></pre>
-<h3>Test Suite</h3>
-<pre><code class="language-python"># test_greetings.py
+<h3>Complete Test Suite</h3>
+<p>Below is the complete testing suite that was designed to validate the functionality within <code>test_math_helpers.py</code>:</p>
+<pre><code class="language-python">import pytest
+from math_helpers import calculate_average
 
-import unittest
-from greetings import get_greeting
+# Test for valid input with non-empty list.
+def test_valid_input():
+    assert calculate_average([1, 2, 3, 4, 5]) == 3.0
 
-class TestGetGreeting(unittest.TestCase):
+# Test with floats in the input list.
+def test_floats_input():
+    assert calculate_average([1.5, 2.5, 3.5]) == 2.5
 
-    def test_greeting_with_normal_name(self):
-        self.assertEqual(get_greeting(&quot;John&quot;), &quot;Hello, John!&quot;)
+# Test with a single number in the list.
+def test_single_input():
+    assert calculate_average([10]) == 10.0
 
-    def test_greeting_with_admin(self):
-        self.assertEqual(get_greeting(&quot;Admin&quot;), &quot;Welcome, Admin!&quot;)
-
-    def test_greeting_with_empty_string(self):
-        self.assertEqual(get_greeting(&quot;&quot;), &quot;Hello, !&quot;)
-
-    def test_greeting_with_numeric_name(self):
-        self.assertEqual(get_greeting(&quot;123&quot;), &quot;Hello, 123!&quot;)
-
-    def test_greeting_with_special_characters(self):
-        self.assertEqual(get_greeting(&quot;@lien_23&quot;), &quot;Hello, @lien_23!&quot;)
-
-if __name__ == &quot;__main__&quot;:
-    unittest.main()
+# Test for handling of an empty list.
+def test_empty_list():
+    with pytest.raises(ValueError) as excinfo:
+        calculate_average([])
+    assert str(excinfo.value) == 'Input list cannot be empty'
 </code></pre>
+<p>This concludes our report on the <code>calculate_average</code> function development and its testing output. Should you require further assistance or clarification, please feel free to reach out. Thank you for your understanding and support throughout this process.</p>
         </body>
         </html>
         

@@ -3,37 +3,49 @@
 import streamlit as st
 import subprocess
 import sys
+import re
+import time
 
-# Configuration
-st.set_page_config(page_title="Digital Forge", layout="wide")
-
-# App header
-st.title("🛠️ The Digital Forge")
-st.write("Enter a description of the code you want generated, and let the Digital Forge pipeline do the rest.")
-
-# Input area
-user_request = st.text_area(
-    label="Describe your feature or function:",
-    height=200,
-    placeholder="E.g., 'I need a function to calculate the factorial of a number...'"
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="The Digital Forge",
+    page_icon="🛠️",
+    layout="wide"
 )
 
-if st.button("Generate Code & Tests"):
+# --- App Header ---
+st.title("🛠️ The Digital Forge")
+st.write(
+    "Welcome! Describe the function or feature you need, and the AI agent crew will build it. "
+    "They will write the Python code, create tests to validate it, and even try to fix bugs they find along the way."
+)
+
+# --- Input Area ---
+user_request = st.text_area(
+    "**Enter your request below:**",
+    height=150,
+    placeholder="e.g., I need a function that takes a list of numbers and returns the sum."
+)
+
+if st.button("Start Forging", type="primary"):
     if not user_request.strip():
-        st.warning("Please enter a request above.")
+        st.warning("Please enter a request before starting the forge.")
     else:
-        # Placeholder for the entire output area
-        results_area = st.empty()
+        # --- Execution Area ---
+        st.markdown("---")
+        st.subheader("Forge Pipeline Status")
         
-        # Use a single container for live logs
-        log_container = results_area.container()
-        log_box = log_container.expander("▶️ Show Pipeline Logs", expanded=True)
-        log_text = log_box.empty()
-        
-        output_lines = []
+        # --- Dynamic Status Placeholders ---
+        placeholders = {}
+        sprint_attempt = 1
+
+        log_expander = st.expander("▶️ Show Detailed Logs")
+        log_placeholder = log_expander.empty()
+
+        full_output = []
         
         try:
-            # Launch subprocess with line buffering
+            # Launch the backend script as a subprocess
             process = subprocess.Popen(
                 [sys.executable, "backend/main-deployment.py", user_request],
                 stdout=subprocess.PIPE,
@@ -42,47 +54,96 @@ if st.button("Generate Code & Tests"):
                 bufsize=1,
                 encoding='utf-8'
             )
-            
-            # Stream and accumulate logs
-            for raw_line in process.stdout:
-                line = raw_line.rstrip()
-                output_lines.append(line)
-                # Update the log box with full history, filtering out the separator
-                current_log_content = "\n".join(
-                    [l for l in output_lines if "---FINAL_REPORT---" not in l and "---ERROR---" not in l]
-                )
-                log_text.code(current_log_content)
-            
+
+            # --- Stream and Parse Output ---
+            for line in process.stdout:
+                cleaned_line = line.strip()
+                if not cleaned_line:
+                    continue
+                
+                full_output.append(cleaned_line)
+                log_placeholder.code("\n".join(full_output))
+
+                # --- Update Status Placeholders Based on Backend Logs ---
+                if line.startswith("START:"):
+                    if "Janus: Clarifying" in line:
+                        placeholders["janus_brief"] = st.empty()
+                        placeholders["janus_brief"].info("🤔 Janus is understanding the request...")
+                    elif "Athena: Deconstructing" in line:
+                        placeholders["athena_plan"] = st.empty()
+                        placeholders["athena_plan"].info("📝 Athena is building the development plan...")
+                    elif "Hephaestus: Writing" in line:
+                        # Use a unique key for each sprint attempt
+                        key = f"hephaestus_code_{sprint_attempt}"
+                        placeholders[key] = st.empty()
+                        message = "⌨️ Hephaestus is writing the code..." if sprint_attempt == 1 else f"⌨️ Hephaestus is correcting the code (Attempt {sprint_attempt})..."
+                        placeholders[key].info(message)
+                    elif "Argus: Creating" in line:
+                        key = f"argus_test_{sprint_attempt}"
+                        placeholders[key] = st.empty()
+                        placeholders[key].info(f"🔎 Argus is testing the code (Attempt {sprint_attempt})...")
+                    elif "Athena: Analyzing" in line:
+                        key = f"athena_debug_{sprint_attempt}"
+                        placeholders[key] = st.empty()
+                        placeholders[key].info("🤔 Athena is analyzing the test failure...")
+                    elif "Janus: Compiling" in line:
+                        placeholders["janus_report"] = st.empty()
+                        placeholders["janus_report"].info("📄 Janus is building the final report...")
+
+                elif line.startswith("DONE:"):
+                    if "Janus: Clarifying" in line:
+                        placeholders["janus_brief"].success("✔️ Janus has clarified the requirements.")
+                    elif "Athena: Deconstructing" in line:
+                        placeholders["athena_plan"].success("✔️ Athena has structured the development plan.")
+                    elif "Hephaestus: Writing" in line:
+                        key = f"hephaestus_code_{sprint_attempt}"
+                        placeholders[key].success("✔️ Hephaestus has finished the code.")
+                    elif "Argus: Creating" in line:
+                        key = f"argus_test_{sprint_attempt}"
+                        placeholders[key].success("✔️ Argus confirmed all tests passed.")
+                    elif "Athena: Analyzing" in line:
+                        key = f"athena_debug_{sprint_attempt}"
+                        placeholders[key].success("✔️ Athena has created a bug report.")
+                
+                elif line.startswith("FAIL:"):
+                    if "Argus: Tests failed" in line:
+                        key = f"argus_test_{sprint_attempt}"
+                        placeholders[key].warning("⚠️ Argus found bugs.")
+                        sprint_attempt += 1 # Increment for the next loop
+
+                time.sleep(0.01)
+
             process.wait()
 
         except Exception as e:
-            st.error(f"An error occurred while launching the process: {e}")
+            st.error(f"A critical error occurred while launching the process: {e}")
             st.stop()
 
-        # Process the final output
-        full_output = "\n".join(output_lines)
-
-        if "---ERROR---" in full_output or process.returncode != 0:
-            log_content, error_content = full_output.split("---ERROR---" if "---ERROR---" in full_output else "\n", 1)
-            results_area.error("Pipeline execution failed. See logs for details.")
-            with st.expander("Error Logs", expanded=True):
-                st.text(error_content.strip())
+        # --- Final Report Display ---
+        final_output_str = "\n".join(full_output)
         
-        elif "---FINAL_REPORT---" in full_output:
-            log_content, report_content = full_output.split("---FINAL_REPORT---", 1)
-            
-            # Clear the old results area and replace it with the final report
-            results_area.empty()
-            st.success("Pipeline completed successfully!")
+        # Clear the status placeholders before showing the final report
+        for ph in placeholders.values():
+            ph.empty()
+
+        if "---ERROR---" in final_output_str or process.returncode != 0:
+            st.error("Pipeline execution failed.")
+        
+        elif "---FINAL_REPORT---" in final_output_str:
+            st.success("✔️ The final report is complete.")
+            _, report_content = final_output_str.split("---FINAL_REPORT---", 1)
+            st.markdown("---")
+            st.subheader("Final Report")
             st.markdown(report_content.strip(), unsafe_allow_html=True)
-            with st.expander("Show Final Pipeline Logs"):
-                st.code(log_content.strip())
+            st.download_button(
+                label="Download Report",
+                data=report_content.strip(),
+                file_name="digital_forge_report.md",
+                mime="text/markdown"
+            )
         else:
-             results_area.warning("Pipeline finished, but no final report was generated. See logs for details.")
-             with st.expander("Show Final Pipeline Logs", expanded=True):
-                 st.code(full_output)
+            st.warning("Pipeline finished, but no final report was generated.")
 
-
-# Footer
+# --- Footer ---
 st.markdown("---")
-st.write("Powered by CrewAI • Digital Forge")
+st.write("Powered by CrewAI • The Digital Forge")
