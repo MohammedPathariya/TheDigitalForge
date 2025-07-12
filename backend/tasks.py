@@ -1,17 +1,9 @@
 # backend/tasks.py
-# Generalized CrewAI Task definitions & workflows for The Digital Forge
+# Generalized CrewAI Task definitions & workflows for The Digital Forge (Robust Version)
 
 from crewai import Task
 from agents import unit_734_crew
 from tools import file_system_tools
-
-# -----------------------------------------------------------------------------
-# GENERIC TASK DEFINITIONS
-# These tasks are designed to be general-purpose and adaptable to various
-# software development requests. They rely on context being passed in from the
-# orchestrating crew.
-# -----------------------------------------------------------------------------
-
 
 # -----------------------------------------------------------------------------
 # SPRINT PLANNING WORKFLOW
@@ -87,41 +79,35 @@ execute_tests = Task(
     tools=file_system_tools,
 )
 
-
 # -----------------------------------------------------------------------------
-# DEBUGGING & REFINEMENT WORKFLOW
+# DEBUGGING & REFINEMENT WORKFLOW (ENHANCED)
 # -----------------------------------------------------------------------------
 
 analyze_test_failure = Task(
     description=(
-        "You are the team lead. A test has failed. Your task is to perform a root cause analysis and create a clear, actionable bug report for the developer.\n\n"
+        "You are the team lead. A test has failed. Your task is to perform a root cause analysis and create a clear, actionable bug report.\n\n"
+        "**CRITICAL ANALYSIS REQUIRED:**\n"
+        "1.  **Review the Original Task:** First, carefully read the `Original Developer Task` to understand what the developer was *supposed* to build.\n"
+        "2.  **Analyze the Failure Log:** Read the `Full Test Failure Log` to understand what went wrong. Was it an `AssertionError`, an `ImportError`, a `TypeError`, etc.?\n"
+        "3.  **Perform Differential Diagnosis:** This is the most important step. You must decide the *true* root cause:\n"
+        "    - **Case A: The Code is Buggy.** Does the failure log indicate that the code in `{file_name}` does not correctly implement the `Original Developer Task`? (e.g., a logic error, incorrect calculation).\n"
+        "    - **Case B: The Test is Buggy.** Does the failure log indicate that the *test itself* in `{test_file_name}` is wrong? (e.g., it asserts for the wrong value, it tries to import a function with the wrong name, it has a syntax error).\n\n"
+        "**FINAL OUTPUT FORMAT:**\n"
+        "Your final output MUST be a single, valid JSON object with three keys:\n"
+        "1.  `'analysis'`: A brief, one-sentence summary of your diagnosis.\n"
+        "2.  `'file_to_fix'`: The string filename of the file that needs to be fixed (e.g., `{file_name}` or `{test_file_name}`).\n"
+        "3.  `'next_task'`: A new, concise set of instructions for the responsible agent (either the developer or the tester) explaining exactly what needs to be fixed to make the test pass.\n\n"
+        "---\n"
+        "CONTEXT:\n\n"
         "Original Developer Task:\n'''\n{developer_task}\n'''\n\n"
-        "Full Test Failure Log:\n'''\n{test_failure_log}\n'''\n\n"
-        "**CRITICAL INSTRUCTIONS:**\n"
-        "1. Your analysis MUST be grounded *only* in the provided failure log and the original developer task. "
-        "2. Read the log carefully to understand the discrepancy between the expected and actual output.\n"
-        "3. Do NOT invent other errors, suggest new features, or reference concepts not present in the context (e.g., 'login systems', 'database connections').\n"
-        "4. Your final output must be a new, concise 'developer_task' string. This new task should clearly explain the bug and state exactly what needs to be fixed in the code to make the failing test pass."
+        "Full Test Failure Log:\n'''\n{test_failure_log}\n'''\n"
     ),
-    expected_output="A new 'developer_task' as a string, precisely describing the bug and the required code fix based on the test failure log.",
+    expected_output="A valid JSON object containing the keys 'analysis', 'file_to_fix', and 'next_task'.",
     agent=unit_734_crew['lead'],
 )
 
-fix_python_code = Task(
-    description=(
-        "A bug has been identified. Review the bug report from the Team Lead and the original code to implement a fix. "
-        "You must overwrite the original '{file_name}' with the corrected code using the 'save_file' tool. "
-        "Ensure the fix is robust and directly addresses the bug report.\n\n"
-        "Bug Report & New Task:\n'''\n{developer_task}\n'''"
-    ),
-    expected_output="The file path of the newly saved (corrected) Python script: {file_name}.",
-    agent=unit_734_crew['developer'],
-    tools=file_system_tools,
-)
-
-
 # -----------------------------------------------------------------------------
-# FINAL REPORTING WORKFLOW
+# FINAL REPORTING WORKFLOW (ENHANCED)
 # -----------------------------------------------------------------------------
 
 compile_final_report = Task(
@@ -132,11 +118,14 @@ compile_final_report = Task(
         "Under this section, first state the summary provided in '{final_outcome_summary}'.\n"
         "If the tests failed, you MUST then include the complete, multi-line failure log from '{test_results}' inside a Python code block.\n\n"
         "Finally, present the final, verified Python code from '{file_name}' and the complete test suite from '{test_file_name}' in clean, readable Python code blocks.\n\n"
-        "Use all the provided context. Do NOT invent new code or results.\n\n"
+        "**CRITICAL FILE HANDLING:** If the content for `final_code` or `final_tests` is an error message (e.g., 'Error: Code could not be read...'), "
+        "you MUST report that error in the final document instead of showing a code block. Do NOT invent code.\n\n"
+        "---\n"
+        "CONTEXT:\n\n"
         "Initial Brief:\n'''\n{technical_brief}\n'''\n\n"
         "Final Code:\n'''\n{final_code}\n'''\n\n"
         "Test Suite:\n'''\n{final_tests}\n'''"
     ),
-    expected_output="A comprehensive final report in Markdown format, including a summary, the final outcome, the final code, and the complete test suite.",
+    expected_output="A comprehensive and accurate final report in Markdown format.",
     agent=unit_734_crew['liaison'],
 )
