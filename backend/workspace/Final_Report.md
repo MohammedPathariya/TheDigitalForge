@@ -1,40 +1,38 @@
-# Client-Facing Report for find_max Function Creation
+# Final Report: Convert Minutes to Seconds
 
-## Development Process Overview
-The goal of this project was to develop a Python function named `find_max` that identifies the largest number within a list of numerical values. The project began with an initial brief that outlined the core objectives, key features, and technical constraints. Our team diligently developed and tested the function to ensure that it meets all specified requirements and handles various cases, including empty lists.
+## Development Process Summary
+The project aimed to create a Python function that accurately converts a given number of minutes into seconds. Starting from the initial brief, we focused on developing the function `minutes_to_seconds`, which successfully handles valid inputs and raises appropriate errors for invalid inputs. The overall development process involved meticulous testing to ensure that the core objectives were met while maintaining code quality.
 
 ## Final Outcome
 All tests passed successfully.
 
+### Final Code: `time_converter.py`
 ```python
-# Final Code: list_helpers.py
-def find_max(num_list):
-    if not num_list:
-        return None
-    return max(num_list)
+def minutes_to_seconds(minutes: int) -> int:
+    if minutes < 0:
+        raise ValueError("Input must be a non-negative integer.")
+    return minutes * 60
 ```
 
+### Complete Test Suite: `test_time_converter.py`
 ```python
-# Complete Test Suite: test_list_helpers.py
 import pytest
-from list_helpers import find_max
+from time_converter import minutes_to_seconds
 
-class TestFindMax:
-    def test_valid_non_empty_list(self):
-        assert find_max([1, 2, 3, 4, 5]) == 5
+def test_conversion_of_valid_minute_values_to_seconds():
+    assert minutes_to_seconds(5) == 300
 
-    def test_valid_non_empty_list_with_floats(self):
-        assert find_max([1.1, 2.2, 3.3]) == 3.3
+def test_conversion_of_edge_case_with_zero_minutes():
+    assert minutes_to_seconds(0) == 0
 
-    def test_list_with_integers_and_floats(self):
-        assert find_max([1, 5.5, 2]) == 5.5
+def test_handling_of_negative_input():
+    with pytest.raises(ValueError):
+        minutes_to_seconds(-1)
 
-    def test_empty_list(self):
-        assert find_max([]) == None
+def test_conversion_of_large_integer_value():
+    assert minutes_to_seconds(1000000) == 60000000
 
-    def test_list_with_one_number(self):
-        assert find_max([42]) == 42
-
-    def test_list_with_negative_numbers(self):
-        assert find_max([-1, -5, -3]) == -1
+def test_handling_of_non_integer_inputs():
+    with pytest.raises(TypeError):
+        minutes_to_seconds('5')
 ```

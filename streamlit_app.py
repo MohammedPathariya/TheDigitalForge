@@ -77,9 +77,16 @@ with col1:
         placeholder="e.g., I need a Python function called `calculate_sum` in a file named `math_utils.py` that takes a list of numbers and returns their sum."
     )
     start_button = st.button("Start Forging", type="primary", use_container_width=True)
+    stop_button = st.button("Stop Forging", type="secondary", use_container_width=True)
+
 with col2:
     st.subheader("2. Pipeline Status")
     status_area = st.container(height=400)
+
+# --- Logic to handle stop button ---
+if stop_button:
+    st.session_state.pipeline_run_details = {}
+    st.rerun()
 
 # --- Logic to handle button click and pipeline execution ---
 if start_button:
@@ -97,10 +104,8 @@ if start_button:
 # --- Main display logic based on session state ---
 status = st.session_state.pipeline_run_details.get("status")
 
-# Render pipeline status for both running and completed states
 def render_status():
     with status_area:
-        # Replay stored output on completed
         if status == "completed":
             for line in st.session_state.pipeline_run_details.get("output", []):
                 cleaned = line.strip()
@@ -130,7 +135,6 @@ if status == "running":
         placeholders = {}
         sprint_attempt = 1
         current_request = st.session_state.pipeline_run_details.get("user_request", "")
-
         try:
             process = subprocess.Popen(
                 [sys.executable, "backend/main-deployment.py", current_request],
@@ -140,14 +144,11 @@ if status == "running":
                 bufsize=1,
                 encoding='utf-8'
             )
-
             for line in process.stdout:
                 cleaned_line = line.strip()
                 if not cleaned_line:
                     continue
                 st.session_state.pipeline_run_details["output"].append(cleaned_line)
-
-                # --- Update Status Placeholders ---
                 if "START: Janus: Clarifying" in cleaned_line:
                     placeholders["janus_brief"] = st.empty()
                     placeholders["janus_brief"].markdown(styled_status("🤔", "Janus is understanding the request...", "working"), unsafe_allow_html=True)
@@ -159,29 +160,29 @@ if status == "running":
                 elif "DONE: Athena: Deconstructing" in cleaned_line:
                     placeholders["athena_plan"].markdown(styled_status("✅", "Athena has structured the development plan.", "success"), unsafe_allow_html=True)
                 elif "START: Hephaestus: Writing" in cleaned_line:
-                    key = f"hephaestus_code_{sprint_attempt}"
+                    key = f"hephaestus_code_{sprint_attempt}";
                     placeholders[key] = st.empty()
-                    message = "Hephaestus is writing the initial code..." if sprint_attempt == 1 else f"Hephaestus is correcting the code (Attempt {sprint_attempt})..."
-                    placeholders[key].markdown(styled_status("⌨️", message, "working"), unsafe_allow_html=True)
+                    msg = "Hephaestus is writing the initial code..." if sprint_attempt == 1 else f"Hephaestus is correcting the code (Attempt {sprint_attempt})..."
+                    placeholders[key].markdown(styled_status("⌨️", msg, "working"), unsafe_allow_html=True)
                 elif "DONE: Hephaestus: Writing" in cleaned_line:
-                    key = f"hephaestus_code_{sprint_attempt}"
+                    key = f"hephaestus_code_{sprint_attempt}";
                     placeholders[key].markdown(styled_status("✅", "Hephaestus has finished the code.", "success"), unsafe_allow_html=True)
                 elif "START: Argus: Creating" in cleaned_line:
-                    key = f"argus_test_{sprint_attempt}"
+                    key = f"argus_test_{sprint_attempt}";
                     placeholders[key] = st.empty()
                     placeholders[key].markdown(styled_status("🔎", f"Argus is testing the code (Attempt {sprint_attempt})...", "working"), unsafe_allow_html=True)
                 elif "DONE: Argus: Creating" in cleaned_line:
-                    key = f"argus_test_{sprint_attempt}"
+                    key = f"argus_test_{sprint_attempt}";
                     placeholders[key].markdown(styled_status("✅", "Argus confirmed all tests passed.", "success"), unsafe_allow_html=True)
                 elif "FAIL: Argus: Tests failed" in cleaned_line:
-                    key = f"argus_test_{sprint_attempt}"
+                    key = f"argus_test_{sprint_attempt}";
                     placeholders[key].markdown(styled_status("⚠️", "Argus found bugs.", "warning"), unsafe_allow_html=True)
                 elif "START: Athena: Analyzing" in cleaned_line:
-                    key = f"athena_debug_{sprint_attempt}"
+                    key = f"athena_debug_{sprint_attempt}";
                     placeholders[key] = st.empty()
                     placeholders[key].markdown(styled_status("🤔", "Athena is analyzing the test failure...", "working"), unsafe_allow_html=True)
                 elif "DONE: Athena: Analyzing" in cleaned_line:
-                    key = f"athena_debug_{sprint_attempt}"
+                    key = f"athena_debug_{sprint_attempt}";
                     placeholders[key].markdown(styled_status("✅", "Athena has created a bug report.", "success"), unsafe_allow_html=True)
                     sprint_attempt += 1
                 elif "START: Janus: Compiling" in cleaned_line:
@@ -189,12 +190,10 @@ if status == "running":
                     placeholders["janus_report"].markdown(styled_status("📄", "Janus is now building the final report...", "working"), unsafe_allow_html=True)
                 elif "DONE: Janus: Compiling" in cleaned_line or "---FINAL_REPORT---" in cleaned_line:
                     placeholders["janus_report"].markdown(styled_status("✅", "Janus has created the final report.", "success"), unsafe_allow_html=True)
-
             process.wait()
             st.session_state.pipeline_run_details["return_code"] = process.returncode
             st.session_state.pipeline_run_details["status"] = "completed"
             st.rerun()
-
         except Exception as e:
             st.error(f"A critical error occurred: {e}")
             st.session_state.pipeline_run_details["status"] = "error"
@@ -239,12 +238,12 @@ elif status == "completed":
                 disabled=not py_code
             )
 
-        st.markdown(report_content.strip(), unsafe_allow_html=True)
+        st.markdown(report_content.strip(),unsafe_allow_html=True)
     else:
         st.warning("Pipeline finished, but no final report was generated.")
 
     with st.expander("Show Full Execution Log"):
-        st.code("\n".join(st.session_state.pipeline_run_details.get("output", [])), language="log")
+        st.code("\n".join(st.session_state.pipeline_run_details.get("output", [])),language="log")
 
 # --- Footer ---
 st.divider()
