@@ -73,7 +73,7 @@ with col1:
     st.subheader("1. Your Request")
     user_request = st.text_area(
         "**Describe the code you want the agents to write:**",
-        height=200,
+        height= 200, #259,
         placeholder="e.g., I need a Python function called `calculate_sum` in a file named `math_utils.py` that takes a list of numbers and returns their sum."
     )
     start_button = st.button("Start Forging", type="primary", use_container_width=True)
@@ -81,11 +81,16 @@ with col1:
 
 with col2:
     st.subheader("2. Pipeline Status")
+    # Display elapsed time if available
+    if 'start_time' in st.session_state:
+        elapsed = time.time() - st.session_state.start_time
+        st.markdown(f"**Elapsed Time:** {elapsed:.1f}s")
     status_area = st.container(height=400)
 
 # --- Logic to handle stop button ---
 if stop_button:
     st.session_state.pipeline_run_details = {}
+    st.session_state.pop('start_time', None)
     st.rerun()
 
 # --- Logic to handle button click and pipeline execution ---
@@ -93,6 +98,8 @@ if start_button:
     if not user_request.strip():
         st.warning("Please enter a request before starting the forge.")
     else:
+        # Record start time
+        st.session_state.start_time = time.time()
         st.session_state.pipeline_run_details = {
             "output": [],
             "status": "running",

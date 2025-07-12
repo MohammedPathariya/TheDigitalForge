@@ -18,37 +18,50 @@
             </style>
         </head>
         <body>
-            <h1>Final Report: Convert Minutes to Seconds</h1>
-<h2>Development Process Summary</h2>
-<p>The project aimed to create a Python function that accurately converts a given number of minutes into seconds. Starting from the initial brief, we focused on developing the function <code>minutes_to_seconds</code>, which successfully handles valid inputs and raises appropriate errors for invalid inputs. The overall development process involved meticulous testing to ensure that the core objectives were met while maintaining code quality.</p>
+            <h1>Client-Facing Report on Count Vowels Function Development</h1>
+<h2>Summary of Development Process</h2>
+<p>In this development cycle, we successfully created a Python function named <code>count_vowels</code> as outlined in the initial brief. The function efficiently counts the number of vowels in a given string, ensuring case insensitivity in its operations. Throughout the development, we adhered to established Python coding standards to guarantee clarity and maintainability. Our team conducted comprehensive testing against various cases, which confirmed that our implementation meets all predefined success criteria.</p>
 <h2>Final Outcome</h2>
 <p>All tests passed successfully.</p>
-<h3>Final Code: <code>time_converter.py</code></h3>
-<pre><code class="language-python">def minutes_to_seconds(minutes: int) -&gt; int:
-    if minutes &lt; 0:
-        raise ValueError(&quot;Input must be a non-negative integer.&quot;)
-    return minutes * 60
+<pre><code class="language-python"># Failure Log (if any)
+# No failures occurred during testing
 </code></pre>
-<h3>Complete Test Suite: <code>test_time_converter.py</code></h3>
+<h2>Final Code</h2>
+<p>The following is the final verified code from <code>analyzer.py</code>:</p>
+<pre><code class="language-python">def count_vowels(input_string: str) -&gt; int:
+    # Convert the input string to lowercase to ensure the function is case-insensitive
+    input_string = input_string.lower()
+    # Define the set of vowels to look for
+    vowels = {'a', 'e', 'i', 'o', 'u'}
+    # Use a generator expression to count the vowels in the input string
+    count = sum(1 for char in input_string if char in vowels)
+    return count
+</code></pre>
+<h2>Complete Test Suite</h2>
+<p>The complete test suite from <code>test_analyzer.py</code> is as follows:</p>
 <pre><code class="language-python">import pytest
-from time_converter import minutes_to_seconds
+from analyzer import count_vowels
 
-def test_conversion_of_valid_minute_values_to_seconds():
-    assert minutes_to_seconds(5) == 300
+def test_count_vowels_normal_string():
+    assert count_vowels('Hello World') == 3
 
-def test_conversion_of_edge_case_with_zero_minutes():
-    assert minutes_to_seconds(0) == 0
+def test_count_vowels_case_insensitivity():
+    assert count_vowels('HELLO') == 2
 
-def test_handling_of_negative_input():
-    with pytest.raises(ValueError):
-        minutes_to_seconds(-1)
+def test_count_vowels_empty_string():
+    assert count_vowels('') == 0
 
-def test_conversion_of_large_integer_value():
-    assert minutes_to_seconds(1000000) == 60000000
+def test_count_vowels_no_vowels():
+    assert count_vowels('bcdfgh') == 0
 
-def test_handling_of_non_integer_inputs():
-    with pytest.raises(TypeError):
-        minutes_to_seconds('5')
+def test_count_vowels_all_vowels():
+    assert count_vowels('AEIOUaeiou') == 10
+
+def test_count_vowels_long_string():
+    assert count_vowels('a' * 1000) == 1000
+
+if __name__ == &quot;__main__&quot;:
+    pytest.main()
 </code></pre>
         </body>
         </html>
