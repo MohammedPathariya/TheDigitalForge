@@ -85,7 +85,10 @@ with col1:
 with col2:
     st.subheader("2. Pipeline Status")
     elapsed_placeholder = st.empty()
-    status_area        = st.empty()
+    timeline_container   = st.container()
+
+        # Always show the timeline container
+    timeline_container.markdown("<div class='timeline-container'></div>", unsafe_allow_html=True)
 
 # --- Reset on stop ---
 if stop_button:
@@ -115,15 +118,15 @@ if start_button:
 
 status = sess.pipeline_run_details.get("status")
 
-# --- Render timeline container and content ---
+# --- Render timeline ---
 def render_timeline():
     html = "<div class='timeline-container'>"
     for icon, msg, state in sess.timeline:
         html += styled_status(icon, msg, state)
     html += "</div>"
-    status_area.markdown(html, unsafe_allow_html=True)
+    timeline_container.markdown(html, unsafe_allow_html=True)
 
-# --- Append events once with delay between entries ---
+# --- Append events once with delay ---
 def render_new_events():
     for line in sess.pipeline_run_details.get('output', [])[sess.printed_count:]:
         for pattern, key, icon, msg, state in EVENT_DEFS:
@@ -134,31 +137,27 @@ def render_new_events():
                 time.sleep(1)
         sess.printed_count += 1
 
-# --- Timer update & initial render ---
+# --- Update timer and backlog ---
 if 'start_time' in sess:
-    render_timeline()
     elapsed_placeholder.markdown(f"**Elapsed Time:** {int(time.time() - sess.start_time)}s")
-# also process any backlog
-if status in ("running", "completed"):
     render_new_events()
 
-# --- Stream subprocess and stop at report marker ---
+# --- Streaming loop ---
 if status == "running":
     proc = subprocess.Popen([
         sys.executable, "backend/main-deployment.py", sess.pipeline_run_details.get("user_request", "")
-    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     stdout = proc.stdout
     while True:
-        r, _, _ = select.select([stdout], [], [], 1.0)
+        r, _, _ = select.select([stdout], [], [], 1)
         if r:
             line = stdout.readline()
             if not line:
                 break
             sess.pipeline_run_details['output'].append(line)
-        # update timeline & timer
-        render_new_events()
+        # update timer & events each second
         elapsed_placeholder.markdown(f"**Elapsed Time:** {int(time.time() - sess.start_time)}s")
-        # if final report generated, stop early
+        render_new_events()
         if 'janus_report_done' in sess.seen_events:
             proc.terminate()
             sess.pipeline_run_details['return_code'] = 0
@@ -171,30 +170,14 @@ if status == "running":
     proc.wait(timeout=1)
     st.rerun()
 
-# --- Final report display ---
+# --- Completed: simple success + logs ---
 elif status == 'completed':
-    render_new_events()
+    render_timeline()
     elapsed_placeholder.markdown(f"**Elapsed Time:** {int(time.time() - sess.start_time)}s")
-    log = "\n".join(sess.pipeline_run_details.get('output', []))
     st.divider()
-    st.subheader("3. Final Report")
-    if '---ERROR---' in log or sess.pipeline_run_details.get('return_code') != 0:
-        st.error("Pipeline execution failed.")
-    else:
-        # always display report content
-        _, content = log.split('---FINAL_REPORT---', 1)
-        st.success("✔️ The pipeline has finished. See the report below.")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.download_button("⬇️ Download Report (.md)", content.strip(), "digital_forge_report.md", "text/markdown", use_container_width=True)
-        # extract code snippet if present
-        m = re.search(r"```python\n# (.*?\.py)\n(.*?)```", content, re.S)
-        fname, code = (m.group(1), m.group(2)) if m else (None, None)
-        with col2:
-            if fname and code:
-                st.download_button(f"⬇️ Download Code ({fname})", code, fname, "text/x-python", use_container_width=True)
-        st.markdown(content.strip(), unsafe_allow_html=True)
+    st.success("✔️ Pipeline completed successfully.")
     with st.expander("Show Full Execution Log"):
+        log = "\n".join(sess.pipeline_run_details.get('output', []))
         st.code(log, language="log")
 
 # --- Footer ---
