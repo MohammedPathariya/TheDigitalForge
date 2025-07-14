@@ -85,10 +85,7 @@ with col1:
 with col2:
     st.subheader("2. Pipeline Status")
     elapsed_placeholder = st.empty()
-    timeline_container   = st.container()
-
-        # Always show the timeline container
-    timeline_container.markdown("<div class='timeline-container'></div>", unsafe_allow_html=True)
+    timeline_container = st.empty()
 
 # --- Reset on stop ---
 if stop_button:
@@ -120,6 +117,7 @@ status = sess.pipeline_run_details.get("status")
 
 # --- Render timeline ---
 def render_timeline():
+    # redraw the entire timeline container
     html = "<div class='timeline-container'>"
     for icon, msg, state in sess.timeline:
         html += styled_status(icon, msg, state)

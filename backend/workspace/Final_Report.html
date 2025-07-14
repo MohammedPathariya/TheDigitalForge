@@ -19,67 +19,56 @@
         </head>
         <body>
             <h1>Final Report on Email Validation Function Development</h1>
-<h2>Friendly Summary of the Development Process</h2>
-<p>Thank you for trusting us with your email validation project. In line with your initial brief, we have successfully developed the <code>is_valid_email</code> function which verifies the format of email addresses according to the criteria specified. The function has been rigorously tested to ensure its reliability and accuracy.</p>
-<p>The development process included creating the function in Python and writing a comprehensive test suite to cover various scenarios, ensuring that all requirements were met. We focused primarily on edge cases to guarantee that the function behaves as expected under different conditions.</p>
+<h2>Summary of the Development Process</h2>
+<p>The project aimed to develop a Python function named <code>is_valid_email</code> that verifies the format of email addresses based on specified validation criteria. The initial brief clearly outlined the requirements, which included ensuring the presence of exactly one '@' symbol and at least one '.' character following the '@'. </p>
+<p>Throughout the development process, we maintained close adherence to these requirements, with successful implementation and testing phases.</p>
 <h2>Final Outcome</h2>
 <p>All tests passed successfully.</p>
-<h3>Verified Code of <code>email_validator.py</code></h3>
+<h3>Final Code</h3>
 <pre><code class="language-python">def is_valid_email(email: str) -&gt; bool:
-    &quot;&quot;&quot;
-    Validate the format of an email address.
-
-    Parameters:
-    email (str): The email address to validate.
-
-    Returns:
-    bool: True if the email format is valid, otherwise False.
-    &quot;&quot;&quot;
+    # Check if there is exactly one '@' symbol
     if email.count('@') != 1:
         return False
 
     at_index = email.index('@')
+    # Ensure there is at least one '.' following the '@'
     if '.' not in email[at_index:]:
         return False
 
     return True
 </code></pre>
-<h3>Complete Test Suite from <code>test_email_validator.py</code></h3>
+<h3>Test Suite</h3>
 <pre><code class="language-python">import pytest
 from email_validator import is_valid_email
 
-def test_valid_email():
-    assert is_valid_email('test@example.com') is True
 
-
-def test_multiple_at_symbols():
-    assert is_valid_email('test@@example.com') is False
+def test_valid_email_formats():
+    assert is_valid_email('user@example.com') == True
 
 
 def test_missing_at_symbol():
-    assert is_valid_email('test.example.com') is False
+    assert is_valid_email('user.example.com') == False
+
+
+def test_multiple_at_symbols():
+    assert is_valid_email('user@@example.com') == False
 
 
 def test_missing_dot_after_at():
-    assert is_valid_email('test@domain') is False
+    assert is_valid_email('user@example') == False
 
 
-def test_empty_string():
-    assert is_valid_email('') is False
+def test_valid_email_with_subdomains():
+    assert is_valid_email('user@mail.example.com') == True
 
 
-def test_string_without_at_or_dot():
-    assert is_valid_email('test') is False
+def test_edge_case_empty_string():
+    assert is_valid_email('') == False
 
 
-def test_valid_email_short_domain():
-    assert is_valid_email('a@b.co') is True
-
-
-def test_valid_email_long_domain():
-    assert is_valid_email('user.name@verylongdomainname.com') is True
+def test_mixed_case_in_emails():
+    assert is_valid_email('User@ExamPle.com') == True
 </code></pre>
-<p>Thank you for your collaboration throughout this project. We hope this solution meets your expectations. If there are any further questions or adjustments needed, please feel free to reach out.</p>
         </body>
         </html>
         
