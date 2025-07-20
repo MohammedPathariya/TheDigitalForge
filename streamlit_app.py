@@ -5,8 +5,6 @@ import time
 import re
 import select
 
-
-
 # --- Page Configuration ---
 st.set_page_config(
     page_title="The Digital Forge",
