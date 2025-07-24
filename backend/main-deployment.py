@@ -47,7 +47,6 @@ from tools import save_report
 # --- This will now work correctly ---
 WORKSPACE_DIR = ROOT_DIR / 'backend' / 'workspace'
 
-
 class DevelopmentCrew:
     def __init__(self, user_request: str):
         self.user_request = user_request
