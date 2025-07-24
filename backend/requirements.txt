@@ -1,5 +1,20 @@
+# Core libraries
 flask
-crewai
 python-dotenv
-openai
+
+# CrewAI framework
+crewai
+
+# Markdown conversion
 markdown
+
+# Testing
+pytest
+
+# OpenAI (if you're using it anywhere inside CrewAI tools or custom models)
+openai
+
+# Optional: Used by some CrewAI dependencies (safe to include)
+requests
+tiktoken
+pydantic
