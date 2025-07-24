@@ -1,58 +1,40 @@
-# Final Report on Email Validation Function Development
+# Final Report for Minutes to Seconds Converter
 
-## Summary of the Development Process
-The project aimed to develop a Python function named `is_valid_email` that verifies the format of email addresses based on specified validation criteria. The initial brief clearly outlined the requirements, which included ensuring the presence of exactly one '@' symbol and at least one '.' character following the '@'. 
+## Project Overview
+This report details the development process and outcomes for the Minutes to Seconds Converter project, as outlined in the initial brief. The primary goal was to create a function that converts a given number of minutes into seconds and handles input validation properly.
 
-Throughout the development process, we maintained close adherence to these requirements, with successful implementation and testing phases.
+## Development Process
+The project commenced with the understanding that a function named `minutes_to_seconds` was to be developed within a Python file called `time_converter.py`. The function was required to accept an integer input representing minutes and return the equivalent seconds as an integer. Input validation was also a critical feature, whereby a `ValueError` would be raised for negative inputs.
+
+The development team followed the defined requirements closely throughout the implementation phase. Upon completion, a comprehensive test suite was created using pytest to ensure the function behaved as expected across various scenarios, including valid conversions, zero input, and handling of negative values.
 
 ## Final Outcome
 All tests passed successfully.
 
-### Final Code
+### Python Code
 ```python
-def is_valid_email(email: str) -> bool:
-    # Check if there is exactly one '@' symbol
-    if email.count('@') != 1:
-        return False
-    
-    at_index = email.index('@')
-    # Ensure there is at least one '.' following the '@'
-    if '.' not in email[at_index:]:
-        return False
-    
-    return True
+def minutes_to_seconds(minutes: int) -> int:
+    if minutes < 0:
+        raise ValueError("Input must be a non-negative integer.")
+    return minutes * 60
 ```
 
 ### Test Suite
 ```python
 import pytest
-from email_validator import is_valid_email
+from time_converter import minutes_to_seconds
 
+def test_valid_conversion():
+    assert minutes_to_seconds(5) == 300
+    assert minutes_to_seconds(10) == 600
 
-def test_valid_email_formats():
-    assert is_valid_email('user@example.com') == True
+def test_zero_input():
+    assert minutes_to_seconds(0) == 0
 
+def test_negative_input():
+    with pytest.raises(ValueError):
+        minutes_to_seconds(-5)
 
-def test_missing_at_symbol():
-    assert is_valid_email('user.example.com') == False
-
-
-def test_multiple_at_symbols():
-    assert is_valid_email('user@@example.com') == False
-
-
-def test_missing_dot_after_at():
-    assert is_valid_email('user@example') == False
-
-
-def test_valid_email_with_subdomains():
-    assert is_valid_email('user@mail.example.com') == True
-
-
-def test_edge_case_empty_string():
-    assert is_valid_email('') == False
-
-
-def test_mixed_case_in_emails():
-    assert is_valid_email('User@ExamPle.com') == True
+def test_large_input():
+    assert minutes_to_seconds(100000) == 6000000
 ```
