@@ -1,4 +1,5 @@
 flask
 crewai
 python-dotenv
-openai 
+openai
+markdown
