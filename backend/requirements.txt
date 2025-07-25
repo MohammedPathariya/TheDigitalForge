@@ -1,5 +1,6 @@
 # Core libraries
 flask
+flask-cors
 python-dotenv
 
 # CrewAI framework
