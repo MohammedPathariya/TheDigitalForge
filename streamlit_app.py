@@ -62,6 +62,11 @@ with col2:
     timer_placeholder = st.empty()
     report_placeholder = st.empty()
 
+# --- Timer Display ---
+if sess.status == "running" and sess.start_time:
+    elapsed = int(time.time() - sess.start_time)
+    timer_placeholder.markdown(f"⏱ **Elapsed Time:** {elapsed}s")
+
 # --- Reset Pipeline ---
 if stop_button:
     sess.status = None
@@ -82,8 +87,7 @@ if start_button:
         st.rerun()
 
 # --- Handle Backend Request ---
-if sess.status == "running":
-    timer_placeholder.markdown(f"**Elapsed Time:** {int(time.time() - sess.start_time)}s")
+if sess.status == "running" and sess.user_request:
     with st.spinner("🔄 The crew is working on your request..."):
         try:
             response = requests.post(BACKEND_URL, json={"request": sess.user_request}, timeout=600)
@@ -91,22 +95,24 @@ if sess.status == "running":
                 sess.pipeline_output = response.json().get("report", "")
                 sess.status = "completed"
             else:
-                sess.pipeline_output = f"❌ Error from backend: {response.text}"
+                sess.pipeline_output = f"❌ Backend Error ({response.status_code}): {response.text}"
                 sess.status = "error"
         except Exception as e:
-            sess.pipeline_output = f"❌ Request failed: {e}"
+            sess.pipeline_output = f"❌ Request failed: {str(e)}"
             sess.status = "error"
     st.rerun()
 
 # --- Display Final Report or Errors ---
 if sess.status == "completed":
-    timer_placeholder.markdown(f"**Elapsed Time:** {int(time.time() - sess.start_time)}s")
+    elapsed = int(time.time() - sess.start_time)
+    timer_placeholder.markdown(f"⏱ **Elapsed Time:** {elapsed}s")
     st.success("✔️ Pipeline completed successfully.")
     report_placeholder.markdown(sess.pipeline_output, unsafe_allow_html=True)
+
 elif sess.status == "error":
-    st.error("Something went wrong during execution.")
-    st.code(sess.pipeline_output)
+    st.error("❌ Something went wrong during execution.")
+    report_placeholder.code(sess.pipeline_output)
 
 # --- Footer ---
 st.divider()
-st.write("Powered by CrewAI • The Digital Forge")
+st.markdown("Made with ❤️ using CrewAI • Powered by The Digital Forge")
