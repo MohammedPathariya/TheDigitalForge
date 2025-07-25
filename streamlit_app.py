@@ -5,7 +5,7 @@ import requests
 import time
 
 # --- Config ---
-BACKEND_URL = "https://your-backend-url.com/run"  # TODO: Replace with actual backend URL
+BACKEND_URL = "https://thedigitalforge-backend.onrender.com/run"
 
 # --- Page Configuration ---
 st.set_page_config(
