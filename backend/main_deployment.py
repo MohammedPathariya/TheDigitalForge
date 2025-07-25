@@ -3,14 +3,14 @@ from crewai import Crew
 from agents import unit_734_crew
 from tasks import (
     create_technical_brief,
-    decompose_plan,
-    write_code,
-    test_code,
-    analyze_bug,
-    fix_code,
-    retest_code,
-    generate_report
+    define_development_plan,
+    generate_python_code,
+    generate_test_suite,
+    execute_tests,
+    analyze_test_failure,
+    compile_final_report
 )
+
 
 class DevelopmentCrew:
     def __init__(self, user_request: str):
