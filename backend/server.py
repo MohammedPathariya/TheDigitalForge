@@ -2,23 +2,19 @@
 
 from flask import Flask, request, jsonify
 from main_deployment import DevelopmentCrew
-import os
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
-@app.route("/run", methods=["POST"])
+@app.route('/run', methods=['POST'])
 def run_pipeline():
-    data = request.get_json()
+    data = request.json
     user_request = data.get("request", "")
-    if not user_request:
-        return jsonify({"error": "No request provided"}), 400
+    if not user_request.strip():
+        return jsonify({"error": "Request is empty"}), 400
 
-    try:
-        crew = DevelopmentCrew(user_request)
-        final_report = crew.run()
-        return jsonify({"report": final_report})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    crew = DevelopmentCrew(user_request)
+    full_report = crew.run_pipeline()
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+    return jsonify({"report": f"<pre>{full_report}</pre>"}), 200

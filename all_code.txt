@@ -1,0 +1,862 @@
+-e \n--- ./streamlit_app.py ---\n
+# streamlit_app.py
+
+import streamlit as st
+import requests
+import time
+
+# --- Config ---
+BACKEND_URL = "https://thedigitalforge-backend.onrender.com/run"
+
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="The Digital Forge",
+    page_icon="🛠️",
+    layout="wide"
+)
+
+# --- Custom CSS ---
+st.markdown("""
+<style>
+    .main .block-container { padding: 2rem 3rem; }
+    .status-box { border: 1px solid #e0e0e0; border-left-width: 5px; border-radius: 5px;
+        padding: 1rem; margin-bottom: 0.5rem; display: flex; align-items: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.3s ease-in-out; }
+    .status-box-pending { border-left-color: #cccccc; }
+    .status-box-working { border-left-color: #007bff; }
+    .status-box-success { border-left-color: #28a745; }
+    .status-box-warning { border-left-color: #ffc107; }
+    .status-icon { font-size: 1.5rem; margin-right: 1rem; }
+</style>
+""", unsafe_allow_html=True)
+
+# --- Initialize Session ---
+sess = st.session_state
+sess.setdefault("status", None)
+sess.setdefault("start_time", None)
+sess.setdefault("pipeline_output", "")
+sess.setdefault("user_request", "")
+
+# --- Header UI ---
+st.title("🛠️ The Digital Forge")
+st.caption("Your AI-Powered Software Development Crew")
+st.write(
+    "Welcome! Describe the code you need, and our AI agents will build and test it for you. "
+    "The more specific your request, the better the results!"
+)
+st.divider()
+
+# --- Layout ---
+col1, col2 = st.columns([1, 1.2], gap="large")
+with col1:
+    st.subheader("1. Your Request")
+    user_input = st.text_area(
+        "**Describe the code you want built:**",
+        height=200,
+        placeholder="e.g., I need a Python script that fetches weather data and plots it."
+    )
+    start_button = st.button("Start Forging", type="primary", use_container_width=True)
+    stop_button = st.button("Reset", type="secondary", use_container_width=True)
+
+with col2:
+    st.subheader("2. Pipeline Progress")
+    timer_placeholder = st.empty()
+    report_placeholder = st.empty()
+
+# --- Timer Display ---
+if sess.status == "running" and sess.start_time:
+    elapsed = int(time.time() - sess.start_time)
+    timer_placeholder.markdown(f"⏱ **Elapsed Time:** {elapsed}s")
+
+# --- Reset Pipeline ---
+if stop_button:
+    sess.status = None
+    sess.pipeline_output = ""
+    sess.user_request = ""
+    sess.start_time = None
+    st.rerun()
+
+# --- Start Pipeline ---
+if start_button:
+    if not user_input.strip():
+        st.warning("Please enter a request before starting.")
+    else:
+        sess.start_time = time.time()
+        sess.status = "running"
+        sess.user_request = user_input.strip()
+        sess.pipeline_output = ""
+        st.rerun()
+
+# --- Handle Backend Request ---
+if sess.status == "running" and sess.user_request:
+    with st.spinner("🔄 The crew is working on your request..."):
+        try:
+            response = requests.post(BACKEND_URL, json={"request": sess.user_request}, timeout=600)
+            if response.status_code == 200:
+                sess.pipeline_output = response.json().get("report", "")
+                sess.status = "completed"
+            else:
+                sess.pipeline_output = f"❌ Backend Error ({response.status_code}): {response.text}"
+                sess.status = "error"
+        except Exception as e:
+            sess.pipeline_output = f"❌ Request failed: {str(e)}"
+            sess.status = "error"
+    st.rerun()
+
+# --- Display Final Report or Errors ---
+if sess.status == "completed":
+    elapsed = int(time.time() - sess.start_time)
+    timer_placeholder.markdown(f"⏱ **Elapsed Time:** {elapsed}s")
+    st.success("✔️ Pipeline completed successfully.")
+    report_placeholder.markdown(sess.pipeline_output, unsafe_allow_html=True)
+
+elif sess.status == "error":
+    st.error("❌ Something went wrong during execution.")
+    report_placeholder.code(sess.pipeline_output)
+
+# --- Footer ---
+st.divider()
+st.markdown("Made with ❤️ using CrewAI • Powered by The Digital Forge")-e \n--- ./backend/server.py ---\n
+# backend/server.py
+
+from flask import Flask, request, jsonify
+from main_deployment import DevelopmentCrew
+import os
+
+app = Flask(__name__)
+
+@app.route("/run", methods=["POST"])
+def run_pipeline():
+    data = request.get_json()
+    user_request = data.get("request", "")
+    if not user_request:
+        return jsonify({"error": "No request provided"}), 400
+
+    try:
+        crew = DevelopmentCrew(user_request)
+        final_report = crew.run()
+        return jsonify({"report": final_report})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8000)))-e \n--- ./backend/tasks.py ---\n
+# backend/tasks.py
+# Generalized CrewAI Task definitions & workflows for The Digital Forge (Robust Version)
+
+from crewai import Task
+from agents import unit_734_crew
+from tools import file_system_tools
+
+# -----------------------------------------------------------------------------
+# SPRINT PLANNING WORKFLOW
+# -----------------------------------------------------------------------------
+
+create_technical_brief = Task(
+    description=(
+        "Analyze the user's request and transform it into a structured technical brief. "
+        "Your analysis must be thorough, ensuring all aspects of the request are captured.\n\n"
+        "User's Request:\n'''\n{user_request}\n'''\n\n"
+        "Your final output MUST be a Markdown-formatted technical brief containing these exact sections: "
+        "1. Project Overview, 2. Core Objectives, 3. Key Features & Requirements, "
+        "4. Technical Constraints, and 5. Success Criteria. "
+        "**CRITICAL:** Derive all content STRICTLY from the user's request. Do NOT add, invent, or assume any new features, technologies, or constraints."
+    ),
+    expected_output="A comprehensive, well-structured technical brief in Markdown format that is a faithful and complete representation of the user's request.",
+    agent=unit_734_crew['liaison'],
+)
+
+define_development_plan = Task(
+    description=(
+        "Review the provided technical brief and deconstruct it into a clear, actionable development plan. "
+        "The plan MUST address every item in the 'Key Features & Requirements' and 'Success Criteria' sections of the brief.\n\n"
+        "Technical Brief:\n'''\n{technical_brief}\n'''\n\n"
+        "Your final output MUST be a single, valid JSON object containing four distinct keys:\n"
+        "1. 'file_name': A suitable, PEP8-compliant filename for the Python script (e.g., 'data_processor.py').\n"
+        "2. 'test_file_name': A suitable filename for the pytest test suite (e.g., 'test_data_processor.py').\n"
+        "3. 'developer_task': A precise set of instructions for the developer. This must detail the required functions, their expected inputs and outputs, and the core logic that needs to be implemented to satisfy the brief.\n"
+        "4. 'tester_task': A precise set of instructions for the QA tester. This must describe the testing strategy and list the specific types of test cases needed to validate every feature and success criterion (e.g., 'test for valid input', 'test for handling of edge cases like empty strings', 'test for correct data transformation')."
+    ),
+    expected_output="A single, valid JSON object with the keys 'file_name', 'test_file_name', 'developer_task', and 'tester_task', containing specific and actionable instructions derived from the technical brief.",
+    agent=unit_734_crew['lead'],
+)
+
+
+# -----------------------------------------------------------------------------
+# DEVELOPMENT & TESTING WORKFLOW
+# -----------------------------------------------------------------------------
+
+generate_python_code = Task(
+    description=(
+        "Based on the following development task, write clean, efficient, and correct Python code. "
+        "You MUST implement the logic exactly as described in the task. Do not add any extra functionality or libraries unless explicitly requested.\n\n"
+        "Developer Task:\n'''\n{developer_task}\n'''\n\n"
+        "After writing the code, use the 'save_file' tool to save it to the specified filename: {file_name}."
+    ),
+    expected_output="The full file path of the saved Python script as a string (e.g., 'backend/workspace/data_processor.py').",
+    agent=unit_734_crew['developer'],
+    tools=file_system_tools,
+)
+
+generate_test_suite = Task(
+    description=(
+        "Based on the following testing plan, create a comprehensive test suite using the pytest framework. "
+        "The tests MUST validate the Python code in the file '{file_name}' against all requirements in the testing plan.\n\n"
+        "Testing Plan:\n'''\n{tester_task}\n'''\n\n"
+        "Your test assertions must be precise and directly check for the expected outcomes. "
+        "For example, if a function should return a specific dictionary, assert the contents of the dictionary directly, do not just check its length.\n\n"
+        "Use the 'save_file' tool to save the complete test suite to the specified filename: {test_file_name}."
+    ),
+    expected_output="The full file path of the saved pytest script as a string (e.g., 'backend/workspace/test_data_processor.py').",
+    agent=unit_734_crew['tester'],
+    tools=file_system_tools,
+)
+
+execute_tests = Task(
+    description=(
+        "Execute the pytest test suite located at '{test_file_name}' against the generated code using the 'run_tests' tool. "
+        "Analyze the results and provide a definitive summary. Your entire output will be passed to the team lead for review."
+    ),
+    expected_output="A string containing the complete test results: either the exact string 'ALL TESTS PASSED' or a detailed, multi-line failure log from pytest.",
+    agent=unit_734_crew['tester'],
+    tools=file_system_tools,
+)
+
+# -----------------------------------------------------------------------------
+# DEBUGGING & REFINEMENT WORKFLOW (ENHANCED)
+# -----------------------------------------------------------------------------
+
+analyze_test_failure = Task(
+    description=(
+        "You are the team lead. A test has failed. Your task is to perform a root cause analysis and create a clear, actionable bug report.\n\n"
+        "**CRITICAL ANALYSIS REQUIRED:**\n"
+        "1.  **Review the Original Task:** First, carefully read the `Original Developer Task` to understand what the developer was *supposed* to build.\n"
+        "2.  **Analyze the Failure Log:** Read the `Full Test Failure Log` to understand what went wrong. Was it an `AssertionError`, an `ImportError`, a `TypeError`, etc.?\n"
+        "3.  **Perform Differential Diagnosis:** This is the most important step. You must decide the *true* root cause:\n"
+        "    - **Case A: The Code is Buggy.** Does the failure log indicate that the code in `{file_name}` does not correctly implement the `Original Developer Task`? (e.g., a logic error, incorrect calculation).\n"
+        "    - **Case B: The Test is Buggy.** Does the failure log indicate that the *test itself* in `{test_file_name}` is wrong? (e.g., it asserts for the wrong value, it tries to import a function with the wrong name, it has a syntax error).\n\n"
+        "**FINAL OUTPUT FORMAT:**\n"
+        "Your final output MUST be a single, valid JSON object with three keys:\n"
+        "1.  `'analysis'`: A brief, one-sentence summary of your diagnosis.\n"
+        "2.  `'file_to_fix'`: The string filename of the file that needs to be fixed (e.g., `{file_name}` or `{test_file_name}`).\n"
+        "3.  `'next_task'`: A new, concise set of instructions for the responsible agent (either the developer or the tester) explaining exactly what needs to be fixed to make the test pass.\n\n"
+        "---\n"
+        "CONTEXT:\n\n"
+        "Original Developer Task:\n'''\n{developer_task}\n'''\n\n"
+        "Full Test Failure Log:\n'''\n{test_failure_log}\n'''\n"
+    ),
+    expected_output="A valid JSON object containing the keys 'analysis', 'file_to_fix', and 'next_task'.",
+    agent=unit_734_crew['lead'],
+)
+
+# -----------------------------------------------------------------------------
+# FINAL REPORTING WORKFLOW (ENHANCED)
+# -----------------------------------------------------------------------------
+
+compile_final_report = Task(
+    description=(
+        "Compile a final, client-facing report in Markdown format. The report must be professional and easy to understand.\n"
+        "It should include a friendly summary of the development process, referencing the initial brief.\n\n"
+        "**CRITICAL**: You MUST add a new section at the end titled '## Final Outcome'.\n"
+        "Under this section, first state the summary provided in '{final_outcome_summary}'.\n"
+        "If the tests failed, you MUST then include the complete, multi-line failure log from '{test_results}' inside a Python code block.\n\n"
+        "Finally, present the final, verified Python code from '{file_name}' and the complete test suite from '{test_file_name}' in clean, readable Python code blocks.\n\n"
+        "**CRITICAL FILE HANDLING:** If the content for `final_code` or `final_tests` is an error message (e.g., 'Error: Code could not be read...'), "
+        "you MUST report that error in the final document instead of showing a code block. Do NOT invent code.\n\n"
+        "---\n"
+        "CONTEXT:\n\n"
+        "Initial Brief:\n'''\n{technical_brief}\n'''\n\n"
+        "Final Code:\n'''\n{final_code}\n'''\n\n"
+        "Test Suite:\n'''\n{final_tests}\n'''"
+    ),
+    expected_output="A comprehensive and accurate final report in Markdown format.",
+    agent=unit_734_crew['liaison'],
+)-e \n--- ./backend/tools.py ---\n
+# backend/tools.py
+import subprocess
+import sys
+from pathlib import Path
+import markdown
+
+# --- Robust Tool Import ---
+# This attempts to import the 'tool' decorator from the new 'crewai_tools' library,
+# but falls back to the older 'crewai.tools' location if it fails.
+# This makes the code resilient to changes in the crewAI library structure.
+try:
+    from crewai_tools import tool
+except ImportError:
+    from crewai.tools import tool
+
+# --- Configuration: Define the AI's workspace for security ---
+WORKSPACE_DIR = Path('backend/workspace')
+WORKSPACE_DIR.mkdir(parents=True, exist_ok=True) # Ensure the workspace exists
+
+def _is_path_in_workspace(path: Path) -> bool:
+    """Checks if the given path is securely within the workspace."""
+    absolute_path = path.resolve()
+    workspace_path = WORKSPACE_DIR.resolve()
+    return workspace_path in absolute_path.parents or absolute_path == workspace_path
+
+@tool
+def save_file(file_path: str, content: str) -> str:
+    """Saves the given content to a specified file within the workspace."""
+    path = WORKSPACE_DIR / file_path
+    if not _is_path_in_workspace(path):
+        return "Error: Path is outside the designated workspace. Operation denied."
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return f"File saved successfully to: {path.resolve()}"
+    except Exception as e:
+        return f"Error saving file: {e}"
+
+@tool
+def run_tests(test_file_path: str) -> str:
+    """Executes a pytest test suite on a given file within the workspace."""
+    path = WORKSPACE_DIR / test_file_path
+    if not _is_path_in_workspace(path):
+        return "Error: Cannot run tests on a file outside the designated workspace."
+    if not path.is_file():
+        return f"Error: Test file not found at {path.resolve()}"
+
+    cmd = [
+        sys.executable, "-m", "pytest",
+        str(path.resolve()),
+        "--maxfail=1",
+        "--disable-warnings",
+        "-q"
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=WORKSPACE_DIR
+        )
+        return "ALL TESTS PASSED"
+    except subprocess.CalledProcessError as e:
+        return (
+            f"TESTS FAILED:\n--- STDOUT ---\n{e.stdout}\n"
+            f"--- STDERR ---\n{e.stderr}"
+        ).strip()
+    except Exception as e:
+        return f"An unexpected error occurred while running tests: {e}"
+
+@tool
+def save_report(file_name_stem: str, markdown_content: str) -> str:
+    """Saves a markdown report as both a .md file and a styled .html file in the workspace."""
+    # Ensure the filenames don't contain extensions
+    base_name = Path(file_name_stem).stem
+
+    md_path = WORKSPACE_DIR / f"{base_name}.md"
+    html_path = WORKSPACE_DIR / f"{base_name}.html"
+
+    if not _is_path_in_workspace(md_path) or not _is_path_in_workspace(html_path):
+        return "Error: Path is outside the designated workspace. Operation denied."
+
+    try:
+        # Save the raw Markdown file
+        with open(md_path, 'w', encoding='utf-8') as f:
+            f.write(markdown_content)
+
+        # Convert Markdown to HTML
+        html_body = markdown.markdown(markdown_content, extensions=['fenced_code', 'tables'])
+
+        # Create a styled HTML document
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{base_name.replace('_', ' ').title()}</title>
+            <style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; max-width: 900px; margin: 20px auto; background-color: #f9f9f9; color: #333; }}
+                h1, h2, h3, h4, h5, h6 {{ color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }}
+                pre {{ background-color: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 8px; overflow-x: auto; }}
+                code {{ font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; }}
+                table {{ border-collapse: collapse; width: 100%; box-shadow: 0 2px 3px rgba(0,0,0,0.1); }}
+                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+                th {{ background-color: #3498db; color: white; }}
+                tr:nth-child(even) {{ background-color: #f2f2f2; }}
+                blockquote {{ background: #ecf0f1; border-left: 5px solid #3498db; margin: 20px 0; padding: 15px; }}
+            </style>
+        </head>
+        <body>
+            {html_body}
+        </body>
+        </html>
+        """
+
+        # Save the HTML file
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+
+        return f"Report successfully saved as Markdown to: {md_path.resolve()} and as HTML to: {html_path.resolve()}"
+    except Exception as e:
+        return f"Error saving report: {e}"
+
+# The exported list of tools now includes the new 'save_report' tool.
+file_system_tools = [save_file, run_tests, save_report]-e \n--- ./backend/agents.py ---\n
+# backend/agents.py
+# CrewAI Agent definitions for Unit 734 - The Digital Forge (Robust Version)
+
+from crewai import Agent
+
+# ----------------------------------------
+# Client Liaison: Janus
+# ----------------------------------------
+janus = Agent(
+    name="Janus",
+    role="Client Liaison",
+    goal=(
+        "Clarify user requirements to create a structured technical brief, and later, "
+        "compile a final, client-facing report that is professional, accurate, and easy to understand. "
+        "**CRITICAL:** If any piece of information, like a file's content, is missing or unreadable, "
+        "you MUST explicitly state that the information could not be retrieved. Do NOT invent or hallucinate content."
+    ),
+    backstory=(
+        "As the two-faced god of beginnings and endings, Janus excels at looking both outward to the user "
+        "and inward to the technical team. He translates ambiguous human language into the precise, "
+        "structured format that Unit 734 needs. He also concludes every project with a clear and honest summary, "
+        "ensuring the final report is a truthful representation of the outcome."
+    ),
+    verbose=True,
+    allow_delegation=False,
+    memory=True
+)
+
+# ----------------------------------------
+# Team Lead: Athena
+# ----------------------------------------
+athena = Agent(
+    name="Athena",
+    role="Strategic Team Lead & Root Cause Analyst",
+    goal=(
+        "Deconstruct the technical brief into a logical development plan. When tests fail, "
+        "perform a meticulous root cause analysis to determine the precise source of the error. "
+        "Your primary function during debugging is to decide if the bug is in the **code** (a developer error) "
+        "or in the **test suite** (a tester error)."
+    ),
+    backstory=(
+        "Athena, the goddess of wisdom and strategy, is the master planner. She sees the entire battlefield, "
+        "from brief to final product. Her greatest strength is her analytical mind. When a test fails, "
+        "she doesn't just see the failure; she investigates it. By comparing the original request, the developer's task, "
+        "the code, and the test that failed, she pinpoints the true cause of the discrepancy, ensuring the right "
+        "agent is tasked with the right fix."
+    ),
+    verbose=True,
+    allow_delegation=False,
+    memory=True
+)
+
+# ----------------------------------------
+# Developer: Hephaestus
+# ----------------------------------------
+hephaestus = Agent(
+    name="Hephaestus",
+    role="Principal Software Developer",
+    goal=(
+        "Write clean, efficient, and correct Python application code based on the provided technical tasks. "
+        "**CRITICAL:** You are a specialist in application logic. You do NOT write tests. If a task asks you "
+        "to modify a test file (e.g., a file named 'test_*.py'), you must refuse and report an error. "
+        "Your sole focus is on the main application code."
+    ),
+    backstory=(
+        "Hephaestus is the master craftsman of the gods, working from his digital forge. He is a "
+        "virtuoso Python developer who values clarity and robustness. He takes Athena's precise specifications "
+        "and turns them into functional code. He does not improvise; he builds exactly what is asked of him, "
+        "with expert skill, and never deviates from his role as the builder of the core application."
+    ),
+    verbose=True,
+    allow_delegation=False,
+    memory=True
+)
+
+# ----------------------------------------
+# Tester: Argus
+# ----------------------------------------
+argus = Agent(
+    name="Argus",
+    role="Quality Assurance Tester",
+    goal=(
+        "Meticulously test the generated code. Your tests MUST be a faithful validation of the developer's task. "
+        "You must also identify bugs and provide detailed, actionable error reports."
+    ),
+    backstory=(
+        "Argus, the all-seeing giant, is the guardian of quality. With a hundred eyes, "
+        "no bug escapes his notice. He receives code from Hephaestus and subjects it to rigorous testing. "
+        "**CRITICAL:** His tests are not his own interpretation; they are a direct reflection of the requirements "
+        "given to the developer. If the developer was asked to build a function that returns 'A', Argus's test "
+        "will check for 'A', never 'B'. This ensures perfect alignment between development and testing."
+    ),
+    verbose=True,
+    allow_delegation=False,
+    memory=True
+)
+
+# Export agents as a dictionary for easy access
+unit_734_crew = {
+    'liaison': janus,
+    'lead': athena,
+    'developer': hephaestus,
+    'tester': argus
+}-e \n--- ./backend/main_deployment.py ---\n
+# ======================
+# ✅ UPDATED main_deployment.py
+# ======================
+
+import argparse
+import json
+import os
+import re
+import sys
+import traceback
+import logging
+import warnings
+from pathlib import Path
+from dotenv import load_dotenv
+from crewai import Crew, Process
+
+# --- Determine project root and load .env ---
+ROOT_DIR = Path(__file__).resolve().parent.parent
+dotenv_path = ROOT_DIR / '.env'
+if dotenv_path.exists():
+    load_dotenv(dotenv_path=dotenv_path)
+else:
+    print(f"Warning: .env file not found at {dotenv_path}")
+
+if not os.getenv("OPENAI_API_KEY"):
+    print("Error: OPENAI_API_KEY not set. Please add it to your .env file with 'OPENAI_API_KEY=YOUR_KEY'.")
+    sys.exit(1)
+
+warnings.filterwarnings("ignore")
+os.environ["CREWAI_TELEMETRY_ENABLED"] = "false"
+logging.getLogger('crewAI').setLevel(logging.CRITICAL)
+
+from agents import unit_734_crew
+from tasks import (
+    create_technical_brief,
+    define_development_plan,
+    generate_python_code,
+    generate_test_suite,
+    execute_tests,
+    analyze_test_failure,
+    compile_final_report
+)
+from tools import save_report
+
+WORKSPACE_DIR = ROOT_DIR / 'backend' / 'workspace'
+
+class DevelopmentCrew:
+    def __init__(self, user_request: str):
+        self.user_request = user_request
+        self.verbose = False
+
+    def run(self) -> str:
+        print("START: Janus: Clarifying requirements...")
+        brief_crew = Crew(
+            agents=[unit_734_crew['liaison']],
+            tasks=[create_technical_brief],
+            verbose=self.verbose
+        )
+        technical_brief = brief_crew.kickoff(inputs={'user_request': self.user_request})
+        print("DONE: Janus: Clarifying requirements.")
+
+        print("START: Athena: Deconstructing the brief...")
+        planning_crew = Crew(
+            agents=[unit_734_crew['lead']],
+            tasks=[define_development_plan],
+            verbose=self.verbose
+        )
+        plan_output = planning_crew.kickoff(inputs={'technical_brief': str(technical_brief)})
+        clean_json = str(plan_output).strip().replace("```json", "").replace("```", "").strip()
+        development_plan = json.loads(clean_json)
+        print("DONE: Athena: Deconstructing the brief.")
+
+        test_results = ""
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            print(f"START: Hephaestus: Writing Python code (Attempt {attempt})...")
+            developer_crew = Crew(agents=[unit_734_crew['developer']], tasks=[generate_python_code], verbose=self.verbose)
+            developer_crew.kickoff(inputs=development_plan.copy())
+            print(f"DONE: Hephaestus: Writing Python code (Attempt {attempt}).")
+
+            print(f"START: Argus: Creating and running tests (Attempt {attempt})...")
+            tester_crew = Crew(
+                agents=[unit_734_crew['tester']],
+                tasks=[generate_test_suite, execute_tests],
+                process=Process.sequential,
+                verbose=self.verbose
+            )
+            test_inputs = development_plan.copy()
+            test_inputs["file_name"] = development_plan["file_name"]
+            test_inputs["test_file_name"] = development_plan["test_file_name"]
+            test_results = tester_crew.kickoff(inputs=test_inputs)
+
+            if "ALL TESTS PASSED" in str(test_results):
+                print(f"DONE: Argus: Creating and running tests (Attempt {attempt}).")
+                break
+
+            print("FAIL: Argus: Tests failed.")
+            if attempt < max_retries:
+                print("START: Athena: Analyzing test failure...")
+                analysis_crew = Crew(agents=[unit_734_crew['lead']], tasks=[analyze_test_failure], verbose=self.verbose)
+                bug_report = analysis_crew.kickoff(
+                    inputs={'test_failure_log': str(test_results), 'developer_task': development_plan['developer_task']}
+                )
+                development_plan['developer_task'] = str(bug_report)
+                print("DONE: Athena: Analyzing test failure.")
+            else:
+                print("FAIL: Reached max attempts. Proceeding to final report.")
+
+        print("START: Janus: Compiling the final report...")
+        return self._generate_final_report(
+            brief=str(technical_brief),
+            tests_output=str(test_results),
+            dev_plan=development_plan
+        )
+
+    def _generate_final_report(self, brief: str, tests_output: str, dev_plan: dict) -> str:
+        final_outcome_summary = (
+            "All tests passed successfully." if "ALL TESTS PASSED" in tests_output 
+            else "Process completed with failing tests. The code below is the latest iteration and may not be fully functional."
+        )
+
+        try:
+            final_code = (WORKSPACE_DIR / dev_plan['file_name']).read_text()
+        except Exception:
+            final_code = "Error: Code could not be read from the workspace."
+        try:
+            final_tests = (WORKSPACE_DIR / dev_plan['test_file_name']).read_text()
+        except Exception:
+            final_tests = "Error: Tests could not be read from the workspace."
+
+        reporting_crew = Crew(
+            agents=[unit_734_crew['liaison']],
+            tasks=[compile_final_report],
+            verbose=self.verbose
+        )
+
+        raw_report = reporting_crew.kickoff(
+            inputs={
+                'technical_brief': brief,
+                'final_code': final_code,
+                'final_tests': final_tests,
+                'test_results': tests_output,
+                'final_outcome_summary': final_outcome_summary,
+                'file_name': dev_plan.get('file_name', 'N/A'),
+                'test_file_name': dev_plan.get('test_file_name', 'N/A')
+            }
+        )
+
+        print("\n---FINAL_REPORT---")
+        raw_report_str = str(raw_report)
+        match = re.search(r"```markdown(.*)```", raw_report_str, re.S)
+        markdown_content = match.group(1).strip() if match else raw_report_str
+
+        save_report.func(file_name_stem="Final_Report", markdown_content=markdown_content)
+        return markdown_content
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run Digital Forge pipeline")
+    parser.add_argument("request", type=str, help="The user request to turn into code+tests")
+    args = parser.parse_args()
+    crew = DevelopmentCrew(args.request)
+    try:
+        final_report = crew.run()
+        print(final_report)
+    except Exception as e:
+        print("\n---ERROR---")
+        print("A critical error occurred during the pipeline execution:")
+        traceback.print_exc()
+        sys.exit(1)
+-e \n--- ./backend/main.py ---\n
+# backend/main.py
+# CLI entrypoint for Unit 734 - The Digital Forge (Production Ready)
+
+import json
+from pathlib import Path
+from dotenv import load_dotenv
+from crewai import Crew, Process
+import warnings
+import os
+import sys
+import re
+import logging
+
+# --- Configuration to Ensure Clean Execution ---
+# Suppress all warnings to keep the output pristine.
+warnings.filterwarnings("ignore")
+# Disable crewAI's telemetry to prevent connection timeout errors.
+os.environ["CREWAI_TELEMETRY_ENABLED"] = "false"
+# Silence the crewAI logger to remove the raw agent "thinking" logs.
+logging.getLogger('crewAI').setLevel(logging.CRITICAL)
+
+
+# Correctly import the agent dictionary and individual tasks
+from agents import unit_734_crew
+from tasks import (
+    create_technical_brief,
+    define_development_plan,
+    generate_python_code,
+    generate_test_suite,
+    execute_tests,
+    analyze_test_failure,
+    compile_final_report
+)
+# Import the correct tool name 'save_report'
+from tools import save_report
+
+# Load environment variables
+load_dotenv()
+
+# Define workspace path for file reading
+WORKSPACE_DIR = Path('backend/workspace')
+
+class DevelopmentCrew:
+    def __init__(self, user_request: str):
+        self.user_request = user_request
+
+    def _print_agent_output(self, agent_name: str, role: str, task_description: str, output: str):
+        """Prints the output of an agent's task in a structured and readable format."""
+        print("\n\n" + "─" * 80)
+        print(f"👤 Agent: {agent_name} ({role})")
+        print(f"📋 Task: {task_description}")
+        print("─" * 80)
+        # Find and print only the final answer part of the output, cleaning it up
+        match = re.search(r"Final Answer:(.*)", output, re.S)
+        if match:
+            clean_output = match.group(1).strip()
+            # Further clean up markdown code blocks if they exist
+            clean_output = re.sub(r"```[a-zA-Z]*\n", "", clean_output)
+            clean_output = clean_output.replace("```", "")
+            print(clean_output.strip())
+        else:
+            print(output.strip()) # Fallback for simple outputs
+        print("─" * 80)
+
+    def run(self):
+        """
+        Runs the development crew process with production-ready logging, 
+        ensuring a final report is always generated.
+        """
+        self.agents = unit_734_crew
+        self.tasks = {
+            'brief': create_technical_brief,
+            'plan': define_development_plan,
+            'develop': generate_python_code,
+            'test_suite': generate_test_suite,
+            'execute_tests': execute_tests,
+            'analyze_failure': analyze_test_failure,
+            'final_report': compile_final_report,
+        }
+
+        print("\n--- [Phase 1/3] Planning & Scoping ---")
+        
+        brief_crew = Crew(agents=[self.agents['liaison']], tasks=[self.tasks['brief']], verbose=False)
+        technical_brief = str(brief_crew.kickoff(inputs={'user_request': self.user_request}))
+        self._print_agent_output("Janus", "Client Liaison", "Create a technical brief from the user request.", technical_brief)
+
+        planning_crew = Crew(agents=[self.agents['lead']], tasks=[self.tasks['plan']], verbose=False)
+        plan_output = planning_crew.kickoff(inputs={'technical_brief': technical_brief})
+        
+        try:
+            clean_json_string = str(plan_output).strip().replace("```json", "").replace("```", "").strip()
+            development_plan = json.loads(clean_json_string)
+            self._print_agent_output("Athena", "Strategic Team Lead", "Create a detailed development plan.", json.dumps(development_plan, indent=2))
+        except (json.JSONDecodeError, AttributeError) as e:
+            error_message = f"❌ Error: Could not parse the development plan. Aborting. Error: {e}"
+            print(error_message)
+            self._generate_final_report(technical_brief, "Planning failed.", "No code generated.", "No tests generated.", {})
+            return
+        
+        print("\n--- [Phase 2/3] Development & Debugging ---")
+        max_retries = 3
+        test_results = ""
+        
+        for attempt in range(1, max_retries + 1):
+            print(f"\n🚀 Sprint Attempt {attempt}/{max_retries}...")
+            
+            developer_crew = Crew(agents=[self.agents['developer']], tasks=[self.tasks['develop']], verbose=False)
+            code_output = str(developer_crew.kickoff(inputs=development_plan.copy()))
+            self._print_agent_output("Hephaestus", "Principal Software Developer", "Write the Python code.", f"✅ Code written to file: {code_output}")
+
+            tester_crew = Crew(agents=[self.agents['tester']], tasks=[self.tasks['test_suite'], self.tasks['execute_tests']], process=Process.sequential, verbose=False)
+            test_results = str(tester_crew.kickoff(inputs=development_plan.copy()))
+            
+            if "ALL TESTS PASSED" in test_results:
+                self._print_agent_output("Argus", "Quality Assurance Tester", "Create and run the test suite.", f"✅ All Tests Passed!")
+                break
+            
+            self._print_agent_output("Argus", "Quality Assurance Tester", "Create and run the test suite.", f"⚠️  Tests Failed.\n\n{test_results}")
+            if attempt < max_retries:
+                analysis_crew = Crew(agents=[self.agents['lead']], tasks=[self.tasks['analyze_failure']], verbose=False)
+                bug_report = analysis_crew.kickoff(inputs={'test_failure_log': test_results, 'developer_task': development_plan['developer_task']})
+                self._print_agent_output("Athena", "Strategic Team Lead", "Analyze test failures and create a bug report.", f"📝 Bug Report for next sprint:\n\n{bug_report}")
+                development_plan['developer_task'] = str(bug_report)
+            else:
+                print(f"\n❌ Maximum retries ({max_retries}) reached. Proceeding to final report.")
+
+        self._generate_final_report(technical_brief, test_results, development_plan)
+
+    def _generate_final_report(self, brief, tests_output, dev_plan):
+        """Compiles and prints the final report, and saves it as Markdown and HTML."""
+        print("\n\n--- [Phase 3/3] Compiling Final Report ---")
+
+        final_code = "Code could not be generated or finalized."
+        final_tests = "Tests could not be generated or finalized."
+        
+        try:
+            final_code = (WORKSPACE_DIR / dev_plan['file_name']).read_text()
+        except Exception: pass
+
+        try:
+            final_tests = (WORKSPACE_DIR / dev_plan['test_file_name']).read_text()
+        except Exception: pass
+            
+        final_outcome = "All tests passed successfully." if "ALL TESTS PASSED" in tests_output else "Process completed with failing tests."
+        
+        reporting_crew = Crew(agents=[self.agents['liaison']], tasks=[self.tasks['final_report']], verbose=False)
+        final_report = reporting_crew.kickoff(
+            inputs={
+                'technical_brief': brief,
+                'final_code': final_code,
+                'final_tests': final_tests,
+                'test_results': tests_output,
+                'final_outcome_summary': final_outcome,
+                'file_name': dev_plan.get('file_name', 'N/A'),
+                'test_file_name': dev_plan.get('test_file_name', 'N/A')
+            }
+        )
+        
+        final_report_str = str(final_report)
+        self._print_agent_output("Janus", "Client Liaison", "Compile the final client-facing report.", final_report_str)
+
+        # Save the report
+        report_file_stem = "Final_Report"
+        # We need to extract just the markdown from the final report string
+        match = re.search(r"```markdown(.*)```", final_report_str, re.S)
+        markdown_content = match.group(1).strip() if match else final_report_str
+        
+        # Use the correct tool name 'save_report'
+        save_result = save_report.func(file_name_stem=report_file_stem, markdown_content=markdown_content)
+        print(f"\n📄 {save_result}")
+
+        print("\n✅ Process Complete.")
+        # FIX: Use os._exit for a more forceful exit to prevent hanging threads.
+        os._exit(0)
+
+
+if __name__ == "__main__":
+    print("\n🚀 --- Initializing The Digital Forge --- 🚀")
+    HARD_CODED_REQUEST = (
+        "I need a Python function called `calculate_factorial` that takes a non-negative integer "
+        "and returns its factorial. It should be in a file named `math_utils.py`. "
+        "The function should handle the edge case of 0 (factorial of 0 is 1) and should raise a "
+        "`ValueError` for negative numbers."
+    )
+    crew = DevelopmentCrew(HARD_CODED_REQUEST)
+    crew.run()
