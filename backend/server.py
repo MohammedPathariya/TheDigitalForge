@@ -1,4 +1,5 @@
 # backend/server.py
+import os
 from flask import Flask, request, jsonify
 from main_deployment import DevelopmentCrew
 from flask_cors import CORS
@@ -17,3 +18,6 @@ def run_pipeline():
     full_report = crew.run_pipeline()
 
     return jsonify({"report": f"<pre>{full_report}</pre>"}), 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
