@@ -1,4 +1,5 @@
 # backend/agents.py
+# CrewAI Agent definitions for Unit 734 - The Digital Forge (Robust Version)
 
 from crewai import Agent
 
@@ -16,9 +17,9 @@ janus = Agent(
     ),
     backstory=(
         "As the two-faced god of beginnings and endings, Janus excels at looking both outward to the user "
-        "and inward to the technical team. He translates ambiguous human language into the precise, structured "
-        "format that Unit 734 needs. He also concludes every project with a clear and honest summary, ensuring "
-        "the final report is a truthful representation of the outcome."
+        "and inward to the technical team. He translates ambiguous human language into the precise, "
+        "structured format that Unit 734 needs. He also concludes every project with a clear and honest summary, "
+        "ensuring the final report is a truthful representation of the outcome."
     ),
     verbose=True,
     allow_delegation=False,
@@ -56,9 +57,10 @@ hephaestus = Agent(
     role="Principal Software Developer",
     goal=(
         "Write clean, efficient, and correct Python application code based on the provided technical tasks. "
-        "**CRITICAL:** You are a specialist in application logic. You do NOT write tests. If a task asks you to "
-        "modify a test file (e.g., a file named 'test_*.py'), you must refuse and report an error. Your sole focus "
-        "is on the main application code."
+        "**CRITICAL RULE 1:** You are a specialist in application logic. You do NOT write tests. If a task asks you to "
+        "modify a test file (e.g., a file named 'test_*.py'), you must refuse and report an error. "
+        "**CRITICAL RULE 2:** When fixing a bug, you MUST reference the original code and only apply the necessary "
+        "changes described in the bug report. Do NOT discard the original code and write something new."
     ),
     backstory=(
         "Hephaestus is the master craftsman of the gods, working from his digital forge. He is a virtuoso Python developer "

@@ -34,7 +34,6 @@ from tasks import (
     analyze_test_failure,
     compile_final_report
 )
-# Import the in-memory workspace and tools
 from tools import IN_MEMORY_WORKSPACE, clear_workspace
 
 class DevelopmentCrew:
@@ -42,28 +41,14 @@ class DevelopmentCrew:
         self.user_request = user_request
 
     def run(self) -> str:
-        # Clear the in-memory workspace at the start of each run
         clear_workspace()
-        
         try:
             # Phase 1: Planning
-            brief_crew = Crew(
-                agents=[unit_734_crew['liaison']],
-                tasks=[create_technical_brief],
-                verbose=False
-            )
-            technical_brief = str(brief_crew.kickoff(
-                inputs={'user_request': self.user_request}
-            ))
+            brief_crew = Crew(agents=[unit_734_crew['liaison']], tasks=[create_technical_brief], verbose=False)
+            technical_brief = str(brief_crew.kickoff(inputs={'user_request': self.user_request}))
 
-            plan_crew = Crew(
-                agents=[unit_734_crew['lead']],
-                tasks=[define_development_plan],
-                verbose=False
-            )
-            plan_raw = str(plan_crew.kickoff(
-                inputs={'technical_brief': technical_brief}
-            ))
+            plan_crew = Crew(agents=[unit_734_crew['lead']], tasks=[define_development_plan], verbose=False)
+            plan_raw = str(plan_crew.kickoff(inputs={'technical_brief': technical_brief}))
             plan_json = plan_raw.strip().replace("```json", "").replace("```", "").strip()
             plan = json.loads(plan_json)
 
@@ -75,15 +60,8 @@ class DevelopmentCrew:
             # Phase 2: Development & Debugging Loop
             test_results = ""
             for attempt in range(1, 4):
-                dev_crew = Crew(
-                    agents=[unit_734_crew['developer']],
-                    tasks=[generate_python_code],
-                    verbose=False
-                )
-                dev_crew.kickoff(inputs={
-                    'developer_task': developer_task,
-                    'file_name': file_name
-                })
+                dev_crew = Crew(agents=[unit_734_crew['developer']], tasks=[generate_python_code], verbose=False)
+                dev_crew.kickoff(inputs={'developer_task': developer_task, 'file_name': file_name})
 
                 test_crew = Crew(
                     agents=[unit_734_crew['tester']],
@@ -101,11 +79,7 @@ class DevelopmentCrew:
                     break
 
                 if attempt < 3:
-                    analysis_crew = Crew(
-                        agents=[unit_734_crew['lead']],
-                        tasks=[analyze_test_failure],
-                        verbose=False
-                    )
+                    analysis_crew = Crew(agents=[unit_734_crew['lead']], tasks=[analyze_test_failure], verbose=False)
                     bug_raw = str(analysis_crew.kickoff(inputs={
                         'developer_task': plan['developer_task'],
                         'test_failure_log': test_results,
@@ -115,10 +89,17 @@ class DevelopmentCrew:
                     bug_json = bug_raw.strip().replace("```json", "").replace("```", "").strip()
                     bug_report = json.loads(bug_json)
 
-                    if bug_report['file_to_fix'] == file_name:
+                    # --- CRITICAL ORCHESTRATION FIX ---
+                    # Check Athena's diagnosis and route the next task to the correct agent.
+                    if bug_report.get('file_to_fix') == file_name:
+                        # If the code is buggy, update the developer's task for the next loop.
                         developer_task = bug_report['next_task']
-                    else:
+                    elif bug_report.get('file_to_fix') == test_file_name:
+                        # If the test is buggy, update the tester's task for the next loop.
                         tester_task = bug_report['next_task']
+                    else:
+                        # Fallback if the file_to_fix is unclear, assume code error.
+                        developer_task = bug_report['next_task']
 
             # Phase 3: Final Reporting
             return self._generate_final_report(technical_brief, test_results, plan)
@@ -131,21 +112,12 @@ class DevelopmentCrew:
         file_name = dev_plan.get('file_name', 'unknown.py')
         test_file_name = dev_plan.get('test_file_name', 'test_unknown.py')
         
-        # *** CRITICAL FIX: Retrieve final code and tests from the IN-MEMORY workspace ***
         final_code = IN_MEMORY_WORKSPACE.get(file_name, f"Error: Code for {file_name} not found in memory.")
         final_tests = IN_MEMORY_WORKSPACE.get(test_file_name, f"Error: Tests for {test_file_name} not found in memory.")
 
-        outcome = (
-            "All tests passed successfully."
-            if "ALL TESTS PASSED" in tests_output
-            else "Process completed with failing tests."
-        )
+        outcome = "All tests passed successfully." if "ALL TESTS PASSED" in tests_output else "Process completed with failing tests."
 
-        report_crew = Crew(
-            agents=[unit_734_crew['liaison']],
-            tasks=[compile_final_report],
-            verbose=False
-        )
+        report_crew = Crew(agents=[unit_734_crew['liaison']], tasks=[compile_final_report], verbose=False)
         report_raw = report_crew.kickoff(inputs={
             'technical_brief': brief,
             'final_code': final_code,
@@ -159,7 +131,6 @@ class DevelopmentCrew:
         
         match = re.search(r"```markdown(.*)```", report_str, re.S)
         return match.group(1).strip() if match else report_str
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Digital Forge pipeline")
