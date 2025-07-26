@@ -1,139 +1,107 @@
 # backend/tools.py
 
 """
-Tool definitions for file I/O, test execution, and reporting
-in the Digital Forge pipeline. Each function is exposed as
-a CrewAI tool and therefore must have its own docstring.
+Tool definitions for an in-memory workspace. This approach avoids writing
+to a persistent disk, making it suitable for serverless and containerized
+deployment environments like Render.
 """
 
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
-import markdown
 
-# --- Robust Tool Import ---
-# Try the new package first; fall back to the built-in one.
 try:
     from crewai_tools import tool
 except ImportError:
     from crewai.tools import tool
 
-# --- Configuration: Define the AI's workspace for security ---
-WORKSPACE_DIR = Path('backend/workspace')
-WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+# --- In-Memory Workspace ---
+# A simple dictionary to act as our virtual file system.
+IN_MEMORY_WORKSPACE = {}
 
-def _is_path_in_workspace(path: Path) -> bool:
-    """
-    Determine whether the given path is inside our secure workspace directory.
-    """
-    absolute_path = path.resolve()
-    workspace_path = WORKSPACE_DIR.resolve()
-    return workspace_path in absolute_path.parents or absolute_path == workspace_path
+def clear_workspace():
+    """Clears the in-memory workspace. Called before each new run."""
+    global IN_MEMORY_WORKSPACE
+    IN_MEMORY_WORKSPACE.clear()
+    print("--- In-memory workspace cleared. ---")
+
 
 @tool
 def save_file(file_path: str, content: str) -> str:
     """
-    Saves the given content to a specified file within the workspace.
-    Returns a success message or an error if the path is invalid or write fails.
+    Saves content to a specified file path in the in-memory workspace.
+    This does NOT write to the physical disk.
     """
-    path = WORKSPACE_DIR / file_path
-    if not _is_path_in_workspace(path):
-        return "Error: Path is outside the designated workspace. Operation denied."
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return f"File saved successfully to: {path.resolve()}"
-    except Exception as e:
-        return f"Error saving file: {e}"
+    global IN_MEMORY_WORKSPACE
+    # Use Path to normalize the path and remove any leading slashes
+    normalized_path = str(Path(file_path))
+    IN_MEMORY_WORKSPACE[normalized_path] = content
+    return f"File '{normalized_path}' saved in memory."
 
 @tool
 def run_tests(test_file_path: str) -> str:
     """
-    Executes a pytest suite on the given test file inside the workspace.
-    Returns 'ALL TESTS PASSED' or a detailed failure log.
+    Executes a pytest suite by writing the necessary files to temporary
+    locations on disk, running the tests, and then cleaning up.
     """
-    path = WORKSPACE_DIR / test_file_path
-    if not _is_path_in_workspace(path):
-        return "Error: Cannot run tests on a file outside the designated workspace."
-    if not path.is_file():
-        return f"Error: Test file not found at {path.resolve()}"
+    global IN_MEMORY_WORKSPACE
+    
+    # Normalize paths for lookup
+    normalized_test_path = str(Path(test_file_path))
+    
+    # Infer the main code file path from the test file path
+    if not normalized_test_path.startswith("test_"):
+        return "Error: Test file name must start with 'test_'."
+    code_file_path = normalized_test_path.replace("test_", "", 1)
 
-    cmd = [
-        sys.executable, "-m", "pytest",
-        str(path.resolve()),
-        "--maxfail=1",
-        "--disable-warnings",
-        "-q"
-    ]
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=WORKSPACE_DIR
-        )
-        return "ALL TESTS PASSED"
-    except subprocess.CalledProcessError as e:
-        return (
-            f"TESTS FAILED:\n--- STDOUT ---\n{e.stdout}\n"
-            f"--- STDERR ---\n{e.stderr}"
-        ).strip()
-    except Exception as e:
-        return f"An unexpected error occurred while running tests: {e}"
+    # Retrieve file contents from memory
+    code_content = IN_MEMORY_WORKSPACE.get(code_file_path)
+    test_content = IN_MEMORY_WORKSPACE.get(normalized_test_path)
 
-@tool
-def save_report(file_name_stem: str, markdown_content: str) -> str:
-    """
-    Saves a markdown report as both .md and styled .html in the workspace.
-    Returns success paths or an error message on failure.
-    """
-    base_name = Path(file_name_stem).stem
-    md_path = WORKSPACE_DIR / f"{base_name}.md"
-    html_path = WORKSPACE_DIR / f"{base_name}.html"
+    if code_content is None:
+        return f"Error: Code file '{code_file_path}' not found in memory."
+    if test_content is None:
+        return f"Error: Test file '{normalized_test_path}' not found in memory."
 
-    if not _is_path_in_workspace(md_path) or not _is_path_in_workspace(html_path):
-        return "Error: Path is outside the designated workspace. Operation denied."
+    # Use a temporary directory to safely write files for the test run
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir_path = Path(temp_dir)
+        
+        # Create temporary file paths
+        temp_code_file = temp_dir_path / code_file_path
+        temp_test_file = temp_dir_path / normalized_test_path
+        
+        # Write the in-memory content to the temporary files
+        temp_code_file.write_text(code_content, encoding='utf-8')
+        temp_test_file.write_text(test_content, encoding='utf-8')
 
-    try:
-        # Save raw Markdown
-        with open(md_path, 'w', encoding='utf-8') as f:
-            f.write(markdown_content)
+        # Command to execute pytest
+        cmd = [
+            sys.executable, "-m", "pytest",
+            str(temp_test_file),
+            "--maxfail=1",
+            "--disable-warnings",
+            "-q"
+        ]
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=temp_dir_path # Run pytest from within the temp directory
+            )
+            return "ALL TESTS PASSED"
+        except subprocess.CalledProcessError as e:
+            return (
+                f"TESTS FAILED:\n--- STDOUT ---\n{e.stdout}\n"
+                f"--- STDERR ---\n{e.stderr}"
+            ).strip()
+        except Exception as e:
+            return f"An unexpected error occurred while running tests: {e}"
 
-        # Convert to HTML
-        html_body = markdown.markdown(markdown_content, extensions=['fenced_code', 'tables'])
-        html_content = f"""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-            <title>{base_name.replace('_',' ').title()}</title>
-            <style>
-                body {{ font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.6; padding:20px; max-width:900px; margin:20px auto; background:#f9f9f9; color:#333; }}
-                pre {{ background:#2c3e50; color:#ecf0f1; padding:15px; border-radius:8px; overflow-x:auto; }}
-                code {{ font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,Courier,monospace; }}
-                h1,h2,h3,h4,h5,h6 {{ color:#2c3e50; border-bottom:2px solid #ecf0f1; padding-bottom:10px; }}
-                table {{ border-collapse:collapse; width:100%; box-shadow:0 2px 3px rgba(0,0,0,0.1); }}
-                th,td {{ border:1px solid #ddd; padding:12px; text-align:left; }}
-                th {{ background-color:#3498db; color:white; }}
-                tr:nth-child(even) {{ background-color:#f2f2f2; }}
-                blockquote {{ background:#ecf0f1; border-left:5px solid #3498db; margin:20px 0; padding:15px; }}
-            </style>
-        </head>
-        <body>{html_body}</body>
-        </html>
-        """
-
-        # Write HTML
-        with open(html_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-
-        return (
-            f"Report saved as Markdown to: {md_path.resolve()} and HTML to: {html_path.resolve()}"
-        )
-    except Exception as e:
-        return f"Error saving report: {e}"
-
-# Export the tools list for use by the pipeline
-file_system_tools = [save_file, run_tests, save_report]
+# The only tools needed are save_file and run_tests.
+# save_report is no longer needed as the report is generated and returned directly.
+file_system_tools = [save_file, run_tests]

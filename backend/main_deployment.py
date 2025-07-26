@@ -34,17 +34,17 @@ from tasks import (
     analyze_test_failure,
     compile_final_report
 )
-from tools import save_report
-
-# --- Workspace Configuration ---
-WORKSPACE_DIR = ROOT_DIR / 'workspace'
-WORKSPACE_DIR.mkdir(exist_ok=True)
+# Import the in-memory workspace and clear function
+from tools import IN_MEMORY_WORKSPACE, clear_workspace
 
 class DevelopmentCrew:
     def __init__(self, user_request: str):
         self.user_request = user_request
 
     def run(self) -> str:
+        # Clear the in-memory workspace at the start of each run
+        clear_workspace()
+        
         try:
             # Phase 1: Planning
             brief_crew = Crew(
@@ -75,7 +75,6 @@ class DevelopmentCrew:
             # Phase 2: Development & Debugging Loop
             test_results = ""
             for attempt in range(1, 4):
-                # --- Development Step ---
                 dev_crew = Crew(
                     agents=[unit_734_crew['developer']],
                     tasks=[generate_python_code],
@@ -86,7 +85,6 @@ class DevelopmentCrew:
                     'file_name': file_name
                 })
 
-                # --- Testing Step ---
                 test_crew = Crew(
                     agents=[unit_734_crew['tester']],
                     tasks=[generate_test_suite, execute_tests],
@@ -102,7 +100,6 @@ class DevelopmentCrew:
                 if "ALL TESTS PASSED" in test_results:
                     break
 
-                # --- Debugging Step (if tests failed) ---
                 if attempt < 3:
                     analysis_crew = Crew(
                         agents=[unit_734_crew['lead']],
@@ -110,7 +107,7 @@ class DevelopmentCrew:
                         verbose=False
                     )
                     bug_raw = str(analysis_crew.kickoff(inputs={
-                        'developer_task': plan['developer_task'], # Pass original task
+                        'developer_task': plan['developer_task'],
                         'test_failure_log': test_results,
                         'file_name': file_name,
                         'test_file_name': test_file_name
@@ -118,12 +115,9 @@ class DevelopmentCrew:
                     bug_json = bug_raw.strip().replace("```json", "").replace("```", "").strip()
                     bug_report = json.loads(bug_json)
 
-                    # *** CRITICAL FIX: Route the task to the correct agent ***
                     if bug_report['file_to_fix'] == file_name:
-                        # If the code is buggy, update the developer's task
                         developer_task = bug_report['next_task']
                     else:
-                        # If the test is buggy, update the tester's task
                         tester_task = bug_report['next_task']
 
             # Phase 3: Final Reporting
@@ -134,19 +128,12 @@ class DevelopmentCrew:
             return "❌ A critical error occurred during the pipeline execution."
 
     def _generate_final_report(self, brief: str, tests_output: str, dev_plan: dict) -> str:
-        # ... (The rest of this function remains the same)
         file_name = dev_plan.get('file_name', 'unknown.py')
         test_file_name = dev_plan.get('test_file_name', 'test_unknown.py')
         
-        try:
-            final_code = (WORKSPACE_DIR / file_name).read_text()
-        except Exception:
-            final_code = f"Error: Could not read code file {file_name}."
-
-        try:
-            final_tests = (WORKSPACE_DIR / test_file_name).read_text()
-        except Exception:
-            final_tests = f"Error: Could not read test file {test_file_name}."
+        # Retrieve final code and tests from the in-memory workspace
+        final_code = IN_MEMORY_WORKSPACE.get(file_name, f"Error: Code for {file_name} not found in memory.")
+        final_tests = IN_MEMORY_WORKSPACE.get(test_file_name, f"Error: Tests for {test_file_name} not found in memory.")
 
         outcome = (
             "All tests passed successfully."
