@@ -17,7 +17,7 @@ def run_pipeline():
 
     crew = DevelopmentCrew(user_request)
     report = crew.run()
-    return jsonify({"report": f"<pre>{report}</pre>"}), 200
+    return jsonify({"report": report}), 200
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
