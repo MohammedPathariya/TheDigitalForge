@@ -96,7 +96,7 @@ analyze_test_failure = Task(
         "Your final output MUST be a single, valid JSON object with three keys:\n"
         "1.  `'analysis'`: A brief, one-sentence summary of your diagnosis.\n"
         "2.  `'file_to_fix'`: The string filename of the file that needs to be fixed (e.g., `{file_name}` or `{test_file_name}`).\n"
-        "3.  `'next_task'`: A new, concise set of instructions for the responsible agent (either the developer or the tester) explaining exactly what needs to be fixed to make the test pass.\n"
+        "3.  `'next_task'`: A new, concise set of instructions for the responsible agent (either the developer or the tester) explaining exactly what needs to be fixed to make the test pass.\n\n"
         "---\n"
         "CONTEXT:\n\n"
         "Original Developer Task:\n'''\n{developer_task}\n'''\n\n"
@@ -113,13 +113,20 @@ analyze_test_failure = Task(
 compile_final_report = Task(
     description=(
         "Compile a final, client-facing report in Markdown format. The report must be professional and easy to understand.\n\n"
-        "**CRITICAL**: It should include a friendly summary of the development process, referencing the initial brief, and a new section at the end titled '## Final Outcome'.\n"
-        "Under '## Final Outcome', state the summary provided in '{final_outcome_summary}'.\n"
-        "If the tests failed, include the complete, multi-line failure log from '{test_results}' inside a Python code block.\n\n"
-        "Finally, present the final, verified Python code from '{file_name}' and the complete test suite from '{test_file_name}' in clean, readable Python code blocks.\n\n"
-        "**CRITICAL FILE HANDLING:** If the content for `final_code` or `final_tests` is an error message (e.g., 'Error: Code could not be read...'), "
-        "you MUST report that error in the final document instead of showing a code block. Do NOT invent code."
+        "**CRITICAL: USE PROVIDED CONTEXT ONLY**\n"
+        "Your primary directive is to act as a compiler. You MUST use the exact, verbatim content provided in the `{final_code}` and `{final_tests}` variables for the code blocks in your report. Do NOT under any circumstances generate, invent, modify, or create your own code for these sections. If the variables contain an error message, you must report that error message. Failure to adhere to this rule will result in an incorrect report.\n\n"
+        "The report structure must be:\n"
+        "1. A friendly summary of the development process, referencing the initial brief.\n"
+        "2. A section titled '## Final Outcome' containing the summary from `{final_outcome_summary}`.\n"
+        "3. If tests failed, the complete, multi-line failure log from `{test_results}` inside a code block.\n"
+        "4. A section with the final Python code from `{file_name}`, using the content from `{final_code}`.\n"
+        "5. A section with the complete test suite from `{test_file_name}`, using the content from `{final_tests}`.\n\n"
+        "---\n"
+        "CONTEXT TO USE:\n\n"
+        "Initial Brief:\n'''\n{technical_brief}\n'''\n\n"
+        "Final Code Content:\n'''\n{final_code}\n'''\n\n"
+        "Test Suite Content:\n'''\n{final_tests}\n'''"
     ),
-    expected_output="A comprehensive and accurate final report in Markdown format.",
+    expected_output="A comprehensive and accurate final report in Markdown format that strictly uses the provided context.",
     agent=unit_734_crew['liaison'],
 )
