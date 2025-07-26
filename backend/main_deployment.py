@@ -34,10 +34,9 @@ from tasks import (
     analyze_test_failure,
     compile_final_report
 )
-# only save_report is provided by tools.py now
 from tools import save_report
 
-# --- In-memory workspace (no files on disk in Render free tier) ---
+# --- Workspace Configuration ---
 WORKSPACE_DIR = ROOT_DIR / 'workspace'
 WORKSPACE_DIR.mkdir(exist_ok=True)
 
@@ -47,7 +46,7 @@ class DevelopmentCrew:
 
     def run(self) -> str:
         try:
-            # Phase 1: Technical Brief
+            # Phase 1: Planning
             brief_crew = Crew(
                 agents=[unit_734_crew['liaison']],
                 tasks=[create_technical_brief],
@@ -57,7 +56,6 @@ class DevelopmentCrew:
                 inputs={'user_request': self.user_request}
             ))
 
-            # Phase 2: Development Plan
             plan_crew = Crew(
                 agents=[unit_734_crew['lead']],
                 tasks=[define_development_plan],
@@ -69,15 +67,15 @@ class DevelopmentCrew:
             plan_json = plan_raw.strip().replace("```json", "").replace("```", "").strip()
             plan = json.loads(plan_json)
 
-            file_name       = plan['file_name']
-            test_file_name  = plan['test_file_name']
-            developer_task  = plan['developer_task']
-            tester_task     = plan['tester_task']
+            file_name = plan['file_name']
+            test_file_name = plan['test_file_name']
+            developer_task = plan['developer_task']
+            tester_task = plan['tester_task']
 
-            # Phase 3: Code/Test Loop (up to 3 attempts)
+            # Phase 2: Development & Debugging Loop
             test_results = ""
             for attempt in range(1, 4):
-                # generate code
+                # --- Development Step ---
                 dev_crew = Crew(
                     agents=[unit_734_crew['developer']],
                     tasks=[generate_python_code],
@@ -88,7 +86,7 @@ class DevelopmentCrew:
                     'file_name': file_name
                 })
 
-                # generate & run tests
+                # --- Testing Step ---
                 test_crew = Crew(
                     agents=[unit_734_crew['tester']],
                     tasks=[generate_test_suite, execute_tests],
@@ -104,7 +102,7 @@ class DevelopmentCrew:
                 if "ALL TESTS PASSED" in test_results:
                     break
 
-                # if failed and we have retries left, create bug report
+                # --- Debugging Step (if tests failed) ---
                 if attempt < 3:
                     analysis_crew = Crew(
                         agents=[unit_734_crew['lead']],
@@ -112,62 +110,69 @@ class DevelopmentCrew:
                         verbose=False
                     )
                     bug_raw = str(analysis_crew.kickoff(inputs={
-                        'developer_task': developer_task,
+                        'developer_task': plan['developer_task'], # Pass original task
                         'test_failure_log': test_results,
                         'file_name': file_name,
                         'test_file_name': test_file_name
                     }))
                     bug_json = bug_raw.strip().replace("```json", "").replace("```", "").strip()
-                    bug = json.loads(bug_json)
+                    bug_report = json.loads(bug_json)
 
-                    if bug['file_to_fix'] == file_name:
-                        developer_task = bug['next_task']
+                    # *** CRITICAL FIX: Route the task to the correct agent ***
+                    if bug_report['file_to_fix'] == file_name:
+                        # If the code is buggy, update the developer's task
+                        developer_task = bug_report['next_task']
                     else:
-                        tester_task = bug['next_task']
+                        # If the test is buggy, update the tester's task
+                        tester_task = bug_report['next_task']
 
-            # Phase 4: Read final code & tests (in-memory)
-            code_path = WORKSPACE_DIR / file_name
-            try:
-                final_code = code_path.read_text()
-            except Exception:
-                final_code = f"Error: Could not read code file {file_name}."
-
-            tests_path = WORKSPACE_DIR / test_file_name
-            try:
-                final_tests = tests_path.read_text()
-            except Exception:
-                final_tests = f"Error: Could not read test file {test_file_name}."
-
-            outcome = (
-                "All tests passed successfully."
-                if "ALL TESTS PASSED" in test_results
-                else "Process completed with failing tests."
-            )
-
-            # Phase 5: Compile Final Report
-            report_crew = Crew(
-                agents=[unit_734_crew['liaison']],
-                tasks=[compile_final_report],
-                verbose=False
-            )
-            report_raw = report_crew.kickoff(inputs={
-                'technical_brief': technical_brief,
-                'final_code': final_code,
-                'final_tests': final_tests,
-                'test_results': test_results,
-                'file_name': file_name,
-                'test_file_name': test_file_name,
-                'final_outcome_summary': outcome
-            })
-            report_str = str(report_raw)
-
-            # strip markdown fences if present
-            match = re.search(r"```markdown(.*)```", report_str, re.S)
-            return match.group(1).strip() if match else report_str
+            # Phase 3: Final Reporting
+            return self._generate_final_report(technical_brief, test_results, plan)
 
         except Exception:
             traceback.print_exc()
-            return "❌ A critical error occurred during the pipeline."
+            return "❌ A critical error occurred during the pipeline execution."
+
+    def _generate_final_report(self, brief: str, tests_output: str, dev_plan: dict) -> str:
+        # ... (The rest of this function remains the same)
+        file_name = dev_plan.get('file_name', 'unknown.py')
+        test_file_name = dev_plan.get('test_file_name', 'test_unknown.py')
+        
+        try:
+            final_code = (WORKSPACE_DIR / file_name).read_text()
+        except Exception:
+            final_code = f"Error: Could not read code file {file_name}."
+
+        try:
+            final_tests = (WORKSPACE_DIR / test_file_name).read_text()
+        except Exception:
+            final_tests = f"Error: Could not read test file {test_file_name}."
+
+        outcome = (
+            "All tests passed successfully."
+            if "ALL TESTS PASSED" in tests_output
+            else "Process completed with failing tests."
+        )
+
+        report_crew = Crew(
+            agents=[unit_734_crew['liaison']],
+            tasks=[compile_final_report],
+            verbose=False
+        )
+        report_raw = report_crew.kickoff(inputs={
+            'technical_brief': brief,
+            'final_code': final_code,
+            'final_tests': final_tests,
+            'test_results': tests_output,
+            'file_name': file_name,
+            'test_file_name': test_file_name,
+            'final_outcome_summary': outcome
+        })
+        report_str = str(report_raw)
+        
+        match = re.search(r"```markdown(.*)```", report_str, re.S)
+        return match.group(1).strip() if match else report_str
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Digital Forge pipeline")
