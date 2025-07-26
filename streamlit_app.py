@@ -107,7 +107,8 @@ if sess.status == "completed":
     elapsed = int(time.time() - sess.start_time)
     timer_placeholder.markdown(f"⏱ **Elapsed Time:** {elapsed}s")
     st.success("✔️ Pipeline completed successfully.")
-    report_placeholder.markdown(sess.pipeline_output, unsafe_allow_html=True)
+    # Render the raw Markdown (including fenced code-blocks)
+    report_placeholder.markdown(sess.pipeline_output)
 
 elif sess.status == "error":
     st.error("❌ Something went wrong during execution.")
