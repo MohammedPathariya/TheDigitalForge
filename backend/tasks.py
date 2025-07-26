@@ -50,7 +50,7 @@ generate_python_code = Task(
         "Developer Task:\n'''\n{developer_task}\n'''\n\n"
         "After writing the code, use the 'save_file' tool to save it to the specified filename: {file_name}."
     ),
-    expected_output="The full file path of the saved Python script as a string (e.g., 'backend/workspace/data_processor.py').",
+    expected_output="The full file path of the saved Python script as a string (e.g., 'workspace/data_processor.py').",
     agent=unit_734_crew['developer'],
     tools=file_system_tools,
 )
@@ -64,7 +64,7 @@ generate_test_suite = Task(
         "For example, if a function should return a specific dictionary, assert the contents of the dictionary directly, do not just check its length.\n\n"
         "Use the 'save_file' tool to save the complete test suite to the specified filename: {test_file_name}."
     ),
-    expected_output="The full file path of the saved pytest script as a string (e.g., 'backend/workspace/test_data_processor.py').",
+    expected_output="The full file path of the saved pytest script as a string (e.g., 'workspace/test_data_processor.py').",
     agent=unit_734_crew['tester'],
     tools=file_system_tools,
 )
@@ -96,7 +96,7 @@ analyze_test_failure = Task(
         "Your final output MUST be a single, valid JSON object with three keys:\n"
         "1.  `'analysis'`: A brief, one-sentence summary of your diagnosis.\n"
         "2.  `'file_to_fix'`: The string filename of the file that needs to be fixed (e.g., `{file_name}` or `{test_file_name}`).\n"
-        "3.  `'next_task'`: A new, concise set of instructions for the responsible agent (either the developer or the tester) explaining exactly what needs to be fixed to make the test pass.\n\n"
+        "3.  `'next_task'`: A new, concise set of instructions for the responsible agent (either the developer or the tester) explaining exactly what needs to be fixed to make the test pass.\n"
         "---\n"
         "CONTEXT:\n\n"
         "Original Developer Task:\n'''\n{developer_task}\n'''\n\n"
@@ -112,19 +112,13 @@ analyze_test_failure = Task(
 
 compile_final_report = Task(
     description=(
-        "Compile a final, client-facing report in Markdown format. The report must be professional and easy to understand.\n"
-        "It should include a friendly summary of the development process, referencing the initial brief.\n\n"
-        "**CRITICAL**: You MUST add a new section at the end titled '## Final Outcome'.\n"
-        "Under this section, first state the summary provided in '{final_outcome_summary}'.\n"
-        "If the tests failed, you MUST then include the complete, multi-line failure log from '{test_results}' inside a Python code block.\n\n"
+        "Compile a final, client-facing report in Markdown format. The report must be professional and easy to understand.\n\n"
+        "**CRITICAL**: It should include a friendly summary of the development process, referencing the initial brief, and a new section at the end titled '## Final Outcome'.\n"
+        "Under '## Final Outcome', state the summary provided in '{final_outcome_summary}'.\n"
+        "If the tests failed, include the complete, multi-line failure log from '{test_results}' inside a Python code block.\n\n"
         "Finally, present the final, verified Python code from '{file_name}' and the complete test suite from '{test_file_name}' in clean, readable Python code blocks.\n\n"
         "**CRITICAL FILE HANDLING:** If the content for `final_code` or `final_tests` is an error message (e.g., 'Error: Code could not be read...'), "
-        "you MUST report that error in the final document instead of showing a code block. Do NOT invent code.\n\n"
-        "---\n"
-        "CONTEXT:\n\n"
-        "Initial Brief:\n'''\n{technical_brief}\n'''\n\n"
-        "Final Code:\n'''\n{final_code}\n'''\n\n"
-        "Test Suite:\n'''\n{final_tests}\n'''"
+        "you MUST report that error in the final document instead of showing a code block. Do NOT invent code."
     ),
     expected_output="A comprehensive and accurate final report in Markdown format.",
     agent=unit_734_crew['liaison'],
