@@ -34,7 +34,7 @@ from tasks import (
     analyze_test_failure,
     compile_final_report
 )
-# Import the in-memory workspace and clear function
+# Import the in-memory workspace and tools
 from tools import IN_MEMORY_WORKSPACE, clear_workspace
 
 class DevelopmentCrew:
@@ -131,7 +131,7 @@ class DevelopmentCrew:
         file_name = dev_plan.get('file_name', 'unknown.py')
         test_file_name = dev_plan.get('test_file_name', 'test_unknown.py')
         
-        # Retrieve final code and tests from the in-memory workspace
+        # *** CRITICAL FIX: Retrieve final code and tests from the IN-MEMORY workspace ***
         final_code = IN_MEMORY_WORKSPACE.get(file_name, f"Error: Code for {file_name} not found in memory.")
         final_tests = IN_MEMORY_WORKSPACE.get(test_file_name, f"Error: Tests for {test_file_name} not found in memory.")
 
