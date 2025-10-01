@@ -1,4 +1,4 @@
-# 🛠️ The Digital Forge: An Autonomous AI Software Development Crew
+# 🛠️ The Digital Forge: An Autonomous AI Software Development Crew 
 
 **The Digital Forge** is a fully autonomous software development pipeline powered by a crew of specialized AI agents. Give it a natural language request, and the crew will work together to understand the requirements, write the code, create tests, and even debug their own work to deliver a final, validated solution.
 
