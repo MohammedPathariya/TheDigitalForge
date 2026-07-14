@@ -1,4 +1,4 @@
-"""Execute one candidate against serialized evaluator cases in a subprocess."""
+"""Execute candidate inputs without access to hidden expected outputs."""
 
 import importlib.util
 import io
@@ -24,47 +24,32 @@ def _load_function(candidate_path: Path, function_name: str) -> Any:
 def main() -> None:
     candidate_path = Path(sys.argv[1])
     function_name = sys.argv[2]
-    cases = json.loads(sys.stdin.read())
-    passed = 0
+    inputs = json.loads(sys.stdin.read())
+    results: list[dict[str, Any]] = []
     try:
         captured_output = io.StringIO()
         with redirect_stdout(captured_output), redirect_stderr(captured_output):
             function = _load_function(candidate_path, function_name)
-        for index, case in enumerate(cases):
+        for args in inputs:
             try:
                 with redirect_stdout(captured_output), redirect_stderr(captured_output):
-                    actual = function(*case["args"])
+                    value = function(*args)
             except Exception as exc:
-                print(
-                    json.dumps(
-                        {
-                            "passed": passed,
-                            "error": (
-                                f"candidate raised {type(exc).__name__} during "
-                                f"hidden case {index}"
-                            ),
-                        }
-                    )
-                )
-                return
-            if actual != case["expected"]:
-                print(
-                    json.dumps(
-                        {
-                            "passed": passed,
-                            "error": f"hidden case {index} failed",
-                        }
-                    )
-                )
-                return
-            passed += 1
-        print(json.dumps({"passed": passed, "error": None}))
+                results.append({"value": None, "error_type": type(exc).__name__})
+                break
+            try:
+                json.dumps(value)
+            except (TypeError, ValueError):
+                results.append({"value": None, "error_type": "SerializationError"})
+                break
+            results.append({"value": value, "error_type": None})
+        print(json.dumps({"results": results, "import_error": None}))
     except Exception as exc:
         print(
             json.dumps(
                 {
-                    "passed": passed,
-                    "error": f"candidate import failed: {type(exc).__name__}",
+                    "results": results,
+                    "import_error": type(exc).__name__,
                 }
             )
         )

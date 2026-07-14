@@ -8,6 +8,7 @@ from crewai import Agent, Crew, Process
 from .agents import build_agents
 from .config import Settings
 from .models import DevelopmentPlan, RunResponse, RunState, RunStatus
+from .sandbox import build_sandbox_runner
 from .tasks import build_tasks
 from .tools import build_file_system_tools
 
@@ -25,7 +26,19 @@ class DevelopmentCrew:
         self.settings = settings or Settings()
         self.state = RunState(request=user_request)
         self.agents: dict[str, Agent] = build_agents()
-        tools = build_file_system_tools(self.state.workspace)
+        sandbox_runner = build_sandbox_runner(
+            self.settings.sandbox_backend,
+            self.settings.docker_sandbox_image,
+            self.settings.modal_sandbox_app,
+        )
+        tools = build_file_system_tools(
+            self.state.workspace,
+            sandbox_runner,
+            timeout_seconds=self.settings.sandbox_timeout_seconds,
+            memory_mib=self.settings.sandbox_memory_mib,
+            cpu_cores=self.settings.sandbox_cpu_cores,
+            process_limit=self.settings.sandbox_process_limit,
+        )
         self.tasks = build_tasks(self.agents, tools)
 
     def run(self) -> RunResponse:
