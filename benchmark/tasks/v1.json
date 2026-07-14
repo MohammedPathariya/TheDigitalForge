@@ -1,0 +1,202 @@
+[
+  {
+    "id": "forge_easy_01",
+    "version": "1.0.0",
+    "title": "First Unpaired Badge",
+    "difficulty": "easy",
+    "function_name": "first_unpaired_badge",
+    "prompt": "Implement `first_unpaired_badge(badges: list[int]) -> int`. Every badge number appears exactly twice except one number that appears once. Return the unpaired number. Do not mutate the input. Return only Python code defining the function, with no markdown.",
+    "tags": ["arrays", "hashing"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_easy_02",
+    "version": "1.0.0",
+    "title": "Stable Crate Deduplication",
+    "difficulty": "easy",
+    "function_name": "dedupe_crates",
+    "prompt": "Implement `dedupe_crates(crate_ids: list[str]) -> list[str]`. Return one copy of each crate ID in the order of its first appearance. Matching is case-sensitive. Do not mutate the input. Return only Python code defining the function, with no markdown.",
+    "tags": ["arrays", "sets"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_easy_03",
+    "version": "1.0.0",
+    "title": "Shared Workshop Tags",
+    "difficulty": "easy",
+    "function_name": "shared_tags",
+    "prompt": "Implement `shared_tags(left: list[str], right: list[str]) -> list[str]`. Return the distinct tags present in both inputs, sorted by Python's normal string ordering. Matching is case-sensitive. Do not mutate either input. Return only Python code defining the function, with no markdown.",
+    "tags": ["sets", "sorting"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_easy_04",
+    "version": "1.0.0",
+    "title": "Bracketed Blueprint",
+    "difficulty": "easy",
+    "function_name": "blueprint_brackets_valid",
+    "prompt": "Implement `blueprint_brackets_valid(text: str) -> bool`. Validate the nesting of `()`, `[]`, and `{}` in the text. Ignore every other character. Each closing bracket must match the most recent unmatched opening bracket. Return only Python code defining the function, with no markdown.",
+    "tags": ["strings", "stack"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_easy_05",
+    "version": "1.0.0",
+    "title": "Queue Wheel",
+    "difficulty": "easy",
+    "function_name": "rotate_queue",
+    "prompt": "Implement `rotate_queue(values: list[int], steps: int) -> list[int]`. Rotate the list to the right by `steps`; `steps` is non-negative and may exceed the list length. Return an empty list for an empty input and do not mutate the input. Return only Python code defining the function, with no markdown.",
+    "tags": ["arrays", "modulo"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_easy_06",
+    "version": "1.0.0",
+    "title": "Running Heat Peak",
+    "difficulty": "easy",
+    "function_name": "running_peak",
+    "prompt": "Implement `running_peak(readings: list[int]) -> list[int]`. At each index return the largest reading seen from index zero through that index. Return an empty list for no readings and do not mutate the input. Return only Python code defining the function, with no markdown.",
+    "tags": ["arrays", "prefix"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_easy_07",
+    "version": "1.0.0",
+    "title": "Catalog Insert Slot",
+    "difficulty": "easy",
+    "function_name": "insert_slot",
+    "prompt": "Implement `insert_slot(sorted_ids: list[int], target: int) -> int`. The input is sorted in nondecreasing order. Return the leftmost index where `target` can be inserted while preserving order. Do not mutate the input. Return only Python code defining the function, with no markdown.",
+    "tags": ["binary-search", "arrays"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_easy_08",
+    "version": "1.0.0",
+    "title": "Monotone Gauge",
+    "difficulty": "easy",
+    "function_name": "is_monotone_gauge",
+    "prompt": "Implement `is_monotone_gauge(values: list[int]) -> bool`. Return true when the entire sequence is nondecreasing or nonincreasing. Equal adjacent values are allowed. Empty and one-item inputs are monotone. Return only Python code defining the function, with no markdown.",
+    "tags": ["arrays", "comparison"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_easy_09",
+    "version": "1.0.0",
+    "title": "Mirrored Inscription",
+    "difficulty": "easy",
+    "function_name": "is_mirrored_inscription",
+    "prompt": "Implement `is_mirrored_inscription(text: str) -> bool`. Keep only ASCII letters and digits, compare case-insensitively, and return whether the remaining characters form a palindrome. An empty normalized string is a palindrome. Return only Python code defining the function, with no markdown.",
+    "tags": ["strings", "two-pointers"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_easy_10",
+    "version": "1.0.0",
+    "title": "Single Market Run",
+    "difficulty": "easy",
+    "function_name": "best_single_trade",
+    "prompt": "Implement `best_single_trade(prices: list[int]) -> int`. Choose one earlier day to buy and one later day to sell, returning the largest non-negative profit. Return zero when no profitable trade exists or fewer than two prices are given. Return only Python code defining the function, with no markdown.",
+    "tags": ["arrays", "greedy"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_medium_01",
+    "version": "1.0.0",
+    "title": "Touching Shift Merge",
+    "difficulty": "medium",
+    "function_name": "merge_shifts",
+    "prompt": "Implement `merge_shifts(shifts: list[list[int]]) -> list[list[int]]`. Each shift is `[start, end]` with `start <= end`. Merge shifts that overlap or touch at an endpoint, then return disjoint shifts sorted by start. Do not mutate the input. Return only Python code defining the function, with no markdown.",
+    "tags": ["intervals", "sorting"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_medium_02",
+    "version": "1.0.0",
+    "title": "Minimum Assembly Bays",
+    "difficulty": "medium",
+    "function_name": "minimum_bays",
+    "prompt": "Implement `minimum_bays(jobs: list[list[int]]) -> int`. Each job is `[start, end]` with `start < end`. Return the minimum number of bays needed so overlapping jobs use different bays. A job ending at time `t` frees its bay for a job starting at `t`. Return zero for no jobs. Return only Python code defining the function, with no markdown.",
+    "tags": ["intervals", "heap"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_medium_03",
+    "version": "1.0.0",
+    "title": "Clockwise Plate Scan",
+    "difficulty": "medium",
+    "function_name": "clockwise_scan",
+    "prompt": "Implement `clockwise_scan(grid: list[list[int]]) -> list[int]`. The grid is rectangular when non-empty. Return its values in clockwise spiral order, beginning at the top-left corner and moving right. Return an empty list for an empty grid. Do not mutate the grid. Return only Python code defining the function, with no markdown.",
+    "tags": ["matrix", "simulation"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_medium_04",
+    "version": "1.0.0",
+    "title": "Longest Distinct Signal",
+    "difficulty": "medium",
+    "function_name": "longest_distinct_signal",
+    "prompt": "Implement `longest_distinct_signal(signal: str) -> int`. Return the length of the longest contiguous substring containing no repeated character. Treat characters exactly as Python does, including spaces and case. Return zero for an empty string. Return only Python code defining the function, with no markdown.",
+    "tags": ["strings", "sliding-window"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_medium_05",
+    "version": "1.0.0",
+    "title": "Deterministic Build Order",
+    "difficulty": "medium",
+    "function_name": "build_order",
+    "prompt": "Implement `build_order(nodes: list[str], dependencies: list[list[str]]) -> list[str]`. Each dependency `[before, after]` requires `before` first. Return the lexicographically smallest valid ordering of all distinct nodes. Return `[]` when a cycle exists. Nodes in dependencies always appear in `nodes`; duplicate dependency pairs may occur. Return only Python code defining the function, with no markdown.",
+    "tags": ["graphs", "topological-sort", "heap"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_medium_06",
+    "version": "1.0.0",
+    "title": "Least-Energy Grid Route",
+    "difficulty": "medium",
+    "function_name": "least_energy_route",
+    "prompt": "Implement `least_energy_route(costs: list[list[int]]) -> int`. The non-empty rectangular grid contains non-negative costs. Start at the top-left, move only right or down, and return the minimum total cost including both endpoints. Return only Python code defining the function, with no markdown.",
+    "tags": ["dynamic-programming", "matrix"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_medium_07",
+    "version": "1.0.0",
+    "title": "Measured Coverage",
+    "difficulty": "medium",
+    "function_name": "covered_length",
+    "prompt": "Implement `covered_length(segments: list[list[int]]) -> int`. Each half-open segment `[start, end)` has integer endpoints and `start <= end`. Return the total length covered by their union. Empty segments contribute zero. Do not mutate the input. Return only Python code defining the function, with no markdown.",
+    "tags": ["intervals", "sorting"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_medium_08",
+    "version": "1.0.0",
+    "title": "Nested Stamp Decoder",
+    "difficulty": "medium",
+    "function_name": "decode_stamps",
+    "prompt": "Implement `decode_stamps(encoded: str) -> str`. Decode repetitions written as `k[content]`, where positive integer `k` may have multiple digits and content may contain lowercase letters or nested repetitions. The input is always valid and contains no spaces. Return only Python code defining the function, with no markdown.",
+    "tags": ["strings", "stack", "parsing"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_medium_09",
+    "version": "1.0.0",
+    "title": "Nearest Budget Pair",
+    "difficulty": "medium",
+    "function_name": "nearest_budget_pair",
+    "prompt": "Implement `nearest_budget_pair(costs: list[int], budget: int) -> list[int]`. Choose two different indices whose values have a sum with minimum absolute distance from `budget`. Return the chosen indices in increasing order. Break ties by the lexicographically smallest index pair. At least two costs are provided. Return only Python code defining the function, with no markdown.",
+    "tags": ["arrays", "sorting", "two-pointers"],
+    "time_limit_seconds": 2.0
+  },
+  {
+    "id": "forge_medium_10",
+    "version": "1.0.0",
+    "title": "Shortest Relay Chain",
+    "difficulty": "medium",
+    "function_name": "relay_steps",
+    "prompt": "Implement `relay_steps(start: str, target: str, relays: list[str]) -> int`. All strings have equal length. One step changes exactly one character and the new word must be in `relays`. Return the minimum number of steps from `start` to `target`, or `-1` if unreachable. Return zero when start equals target. Duplicate relay words may occur. Return only Python code defining the function, with no markdown.",
+    "tags": ["graphs", "breadth-first-search", "strings"],
+    "time_limit_seconds": 2.0
+  }
+]
