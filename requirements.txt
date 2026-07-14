@@ -1,2 +1,6 @@
-streamlit
-requests
+crewai==1.15.2
+fastapi==0.139.0
+pydantic-settings==2.10.1
+requests==2.34.2
+streamlit==1.59.2
+uvicorn==0.51.0
