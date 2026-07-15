@@ -52,9 +52,12 @@ def build_tasks(
     )
     develop = Task(
         description=(
-            "Implement the following development task exactly. Do not add functionality or "
-            "libraries that were not requested.\n\nDeveloper Task:\n'''\n"
-            "{developer_task}\n'''\n\nUse save_file to save the code to {file_name}."
+            "Implement the current instruction while preserving every original requirement. "
+            "Do not add functionality or libraries that were not requested. If current code "
+            "is present, repair that code and preserve unaffected behavior.\n\nOriginal "
+            "Developer Task:\n'''\n{original_developer_task}\n'''\n\nCurrent "
+            "Instruction:\n'''\n{developer_task}\n'''\n\nCurrent Code:\n'''\n"
+            "{current_code}\n'''\n\nUse save_file to save the code to {file_name}."
         ),
         expected_output="The saved Python file path.",
         agent=agents["developer"],
@@ -62,9 +65,12 @@ def build_tasks(
     )
     test_suite = Task(
         description=(
-            "Create a pytest suite for {file_name} that validates every stated requirement. "
-            "Assertions must check exact expected outcomes.\n\nTesting Plan:\n'''\n"
-            "{tester_task}\n'''\n\nUse save_file to save it to {test_file_name}."
+            "Implement the current testing instruction while preserving the original test "
+            "plan. Assertions must check exact expected outcomes. If current tests are "
+            "present, repair only those tests and preserve unaffected coverage.\n\nOriginal "
+            "Testing Plan:\n'''\n{original_tester_task}\n'''\n\nCurrent Testing "
+            "Instruction:\n'''\n{tester_task}\n'''\n\nCurrent Tests:\n'''\n"
+            "{current_tests}\n'''\n\nUse save_file to save it to {test_file_name}."
         ),
         expected_output="The saved pytest file path.",
         agent=agents["tester"],
@@ -81,11 +87,15 @@ def build_tasks(
     )
     analyze_failure = Task(
         description=(
-            "Compare the original developer task with the test failure and decide whether "
-            "the application code or test suite is wrong. Return one valid JSON object with "
+            "Use the sanitized failure class and evidence to identify the root cause. "
+            "Candidate, timeout, and resource failures normally route to {file_name}; test "
+            "failures normally route to {test_file_name}. Do not override that routing "
+            "without evidence in the log. Return one valid JSON object with "
             "'analysis', 'file_to_fix', and 'next_task'. file_to_fix must be {file_name} or "
             "{test_file_name}.\n\nOriginal Developer Task:\n'''\n{developer_task}\n'''\n\n"
-            "Full Test Failure Log:\n'''\n{test_failure_log}\n'''"
+            "Current Application Code:\n'''\n{current_code}\n'''\n\nCurrent Test Code:\n'''\n"
+            "{current_tests}\n'''\n\n"
+            "Sanitized Test Failure Evidence:\n'''\n{test_failure_log}\n'''"
         ),
         expected_output="A valid JSON repair decision.",
         agent=agents["lead"],

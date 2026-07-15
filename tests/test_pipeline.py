@@ -1,3 +1,6 @@
+import pytest
+
+import backend.pipeline as pipeline_module
 from backend.config import Settings
 from backend.models import DevelopmentPlan, RunState, RunStatus
 from backend.pipeline import DevelopmentCrew
@@ -43,3 +46,289 @@ def test_run_state_tracks_workflow_lifecycle_and_outputs() -> None:
     assert state.plan == plan
     assert state.test_results == "ALL TESTS PASSED"
     assert state.report == "Report"
+
+
+@pytest.mark.parametrize(
+    ("file_name", "test_file_name"),
+    [
+        ("../solution.py", "test_solution.py"),
+        ("Solution.py", "test_solution.py"),
+        ("solution.py", "tests.py"),
+        ("solution.py", "test_other.py"),
+    ],
+)
+def test_development_plan_rejects_unsafe_or_mismatched_paths(
+    file_name: str, test_file_name: str
+) -> None:
+    with pytest.raises(ValueError):
+        DevelopmentPlan(
+            file_name=file_name,
+            test_file_name=test_file_name,
+            developer_task="Implement the solution.",
+            tester_task="Test the solution.",
+        )
+
+
+def test_self_healing_repairs_only_the_routed_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(openai_api_key="test-key", max_attempts=3)
+    crew = DevelopmentCrew("build a solution", settings)
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    developer_tasks: list[str] = []
+    tester_tasks: list[str] = []
+    results = iter(
+        [
+            "TESTS FAILED:\nFAILURE CLASS: candidate",
+            "ALL TESTS PASSED",
+        ]
+    )
+
+    monkeypatch.setattr(
+        crew,
+        "_run_developer",
+        lambda _plan, task: developer_tasks.append(task),
+    )
+    monkeypatch.setattr(
+        crew,
+        "_run_test_author",
+        lambda _plan, task: tester_tasks.append(task),
+    )
+    monkeypatch.setattr(crew, "_run_tests", lambda _plan: next(results))
+    monkeypatch.setattr(
+        crew,
+        "_analyze_failure",
+        lambda _plan, _result: {
+            "file_to_fix": "solution.py",
+            "next_task": "Repair the candidate.",
+        },
+    )
+
+    result = crew._develop_and_test(plan)
+
+    assert result == "ALL TESTS PASSED"
+    assert developer_tasks == ["Implement the solution.", "Repair the candidate."]
+    assert tester_tasks == ["Test the solution."]
+    assert crew.state.attempts == 2
+
+
+def test_self_healing_routes_test_repairs_without_rewriting_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(openai_api_key="test-key", max_attempts=3)
+    crew = DevelopmentCrew("build a solution", settings)
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    developer_tasks: list[str] = []
+    tester_tasks: list[str] = []
+    results = iter(
+        [
+            "TESTS FAILED:\nFAILURE CLASS: test",
+            "ALL TESTS PASSED",
+        ]
+    )
+
+    monkeypatch.setattr(
+        crew,
+        "_run_developer",
+        lambda _plan, task: developer_tasks.append(task),
+    )
+    monkeypatch.setattr(
+        crew,
+        "_run_test_author",
+        lambda _plan, task: tester_tasks.append(task),
+    )
+    monkeypatch.setattr(crew, "_run_tests", lambda _plan: next(results))
+    monkeypatch.setattr(
+        crew,
+        "_analyze_failure",
+        lambda _plan, _result: pytest.fail("test failures must route directly"),
+    )
+
+    result = crew._develop_and_test(plan)
+
+    assert result == "ALL TESTS PASSED"
+    assert developer_tasks == ["Implement the solution."]
+    assert tester_tasks[0] == "Test the solution."
+    assert "Repair only the current test suite" in tester_tasks[1]
+    assert "FAILURE CLASS: test" in tester_tasks[1]
+    assert crew.state.attempts == 2
+
+
+def test_timeout_routing_cannot_rewrite_tests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crew = DevelopmentCrew(
+        "build a solution", Settings(openai_api_key="test-key", max_attempts=2)
+    )
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    developer_tasks: list[str] = []
+    tester_tasks: list[str] = []
+    results = iter(["TESTS FAILED:\nFAILURE CLASS: timeout", "ALL TESTS PASSED"])
+
+    monkeypatch.setattr(
+        crew,
+        "_run_developer",
+        lambda _plan, task: developer_tasks.append(task),
+    )
+    monkeypatch.setattr(
+        crew,
+        "_run_test_author",
+        lambda _plan, task: tester_tasks.append(task),
+    )
+    monkeypatch.setattr(crew, "_run_tests", lambda _plan: next(results))
+    monkeypatch.setattr(
+        crew,
+        "_analyze_failure",
+        lambda _plan, _result: pytest.fail("timeouts must route directly"),
+    )
+
+    result = crew._develop_and_test(plan)
+
+    assert result == "ALL TESTS PASSED"
+    assert developer_tasks[0] == "Implement the solution."
+    assert "Repair only the current application code" in developer_tasks[1]
+    assert "FAILURE CLASS: timeout" in developer_tasks[1]
+    assert tester_tasks == ["Test the solution."]
+
+
+def test_repair_crews_receive_original_artifacts_and_requirements(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_inputs: list[dict[str, object]] = []
+
+    class CapturingCrew:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def kickoff(self, *, inputs: dict[str, object]) -> str:
+            captured_inputs.append(inputs)
+            if "test_failure_log" in inputs:
+                return (
+                    '{"analysis":"candidate bug","file_to_fix":"solution.py",'
+                    '"next_task":"repair it"}'
+                )
+            return "saved"
+
+    monkeypatch.setattr(pipeline_module, "Crew", CapturingCrew)
+    crew = DevelopmentCrew("build a solution", Settings(openai_api_key="test-key"))
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    crew.state.workspace.write("solution.py", "def answer(): return 1\n")
+    crew.state.workspace.write(
+        "test_solution.py", "def test_answer(): assert answer() == 2\n"
+    )
+
+    crew._run_developer(plan, "Repair the return value.")
+    crew._run_test_author(plan, "Repair the assertion.")
+    crew._analyze_failure(plan, "TESTS FAILED")
+
+    assert captured_inputs[0]["original_developer_task"] == plan.developer_task
+    assert captured_inputs[0]["current_code"] == "def answer(): return 1\n"
+    assert captured_inputs[1]["original_tester_task"] == plan.tester_task
+    assert "assert answer() == 2" in str(captured_inputs[1]["current_tests"])
+    assert captured_inputs[2]["current_code"] == "def answer(): return 1\n"
+    assert "assert answer() == 2" in str(captured_inputs[2]["current_tests"])
+
+
+def test_self_healing_stops_after_three_candidate_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(openai_api_key="test-key", max_attempts=3)
+    crew = DevelopmentCrew("build a solution", settings)
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    failure = "TESTS FAILED:\nFAILURE CLASS: candidate"
+    repairs = 0
+
+    def analyze_failure(_plan: DevelopmentPlan, _result: str) -> dict[str, object]:
+        nonlocal repairs
+        repairs += 1
+        return {
+            "file_to_fix": "solution.py",
+            "next_task": f"Repair candidate {repairs}.",
+        }
+
+    monkeypatch.setattr(crew, "_run_developer", lambda _plan, _task: None)
+    monkeypatch.setattr(crew, "_run_test_author", lambda _plan, _task: None)
+    monkeypatch.setattr(crew, "_run_tests", lambda _plan: failure)
+    monkeypatch.setattr(crew, "_analyze_failure", analyze_failure)
+
+    result = crew._develop_and_test(plan)
+
+    assert result == failure
+    assert crew.state.attempts == 3
+    assert repairs == 2
+
+
+def test_infrastructure_retries_do_not_consume_candidate_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(openai_api_key="test-key", max_attempts=3)
+    crew = DevelopmentCrew("build a solution", settings)
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    executions = iter(
+        [
+            "TESTS FAILED:\nFAILURE CLASS: infrastructure",
+            "ALL TESTS PASSED",
+        ]
+    )
+
+    monkeypatch.setattr(crew, "_run_developer", lambda _plan, _task: None)
+    monkeypatch.setattr(crew, "_run_test_author", lambda _plan, _task: None)
+    monkeypatch.setattr(crew, "_run_tests", lambda _plan: next(executions))
+
+    result = crew._develop_and_test(plan)
+
+    assert result == "ALL TESTS PASSED"
+    assert crew.state.attempts == 1
+
+
+def test_repeated_infrastructure_failures_stop_without_consuming_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(openai_api_key="test-key", max_attempts=3)
+    crew = DevelopmentCrew("build a solution", settings)
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    infrastructure_failure = "TESTS FAILED:\nFAILURE CLASS: infrastructure"
+
+    monkeypatch.setattr(crew, "_run_developer", lambda _plan, _task: None)
+    monkeypatch.setattr(crew, "_run_test_author", lambda _plan, _task: None)
+    monkeypatch.setattr(crew, "_run_tests", lambda _plan: infrastructure_failure)
+
+    result = crew._develop_and_test(plan)
+
+    assert "INFRASTRUCTURE RETRIES EXHAUSTED" in result
+    assert crew.state.attempts == 0

@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 DEFAULT_DOCKER_IMAGE = "digital-forge-sandbox:py311"
 DEFAULT_MODAL_APP = "digital-forge-sandbox"
+MAX_SANDBOX_OUTPUT_CHARACTERS = 32_000
 SANDBOX_ROOT = PurePosixPath("/workspace")
 
 
@@ -69,6 +70,17 @@ class SandboxResult(BaseModel):
     duration_seconds: float = Field(ge=0)
     timed_out: bool = False
     error: str | None = None
+
+    @field_validator("stdout", "stderr")
+    @classmethod
+    def bound_output(cls, value: str) -> str:
+        if len(value) <= MAX_SANDBOX_OUTPUT_CHARACTERS:
+            return value
+        marker = "\n... <sandbox output truncated>\n"
+        available = MAX_SANDBOX_OUTPUT_CHARACTERS - len(marker)
+        head = available // 2
+        tail = available - head
+        return f"{value[:head]}{marker}{value[-tail:]}"
 
 
 class SandboxRunner(Protocol):

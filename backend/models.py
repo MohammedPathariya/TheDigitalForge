@@ -3,7 +3,7 @@
 from enum import Enum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .workspace import RunWorkspace
 
@@ -28,10 +28,18 @@ class RunResponse(BaseModel):
 
 
 class DevelopmentPlan(BaseModel):
-    file_name: str
-    test_file_name: str
-    developer_task: str
-    tester_task: str
+    file_name: str = Field(pattern=r"^[a-z][a-z0-9_]*\.py$")
+    test_file_name: str = Field(pattern=r"^test_[a-z][a-z0-9_]*\.py$")
+    developer_task: str = Field(min_length=1)
+    tester_task: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_matching_file_names(self) -> "DevelopmentPlan":
+        if self.test_file_name != f"test_{self.file_name}":
+            raise ValueError(
+                "Test file name must be derived from the application file."
+            )
+        return self
 
 
 class RunState(BaseModel):

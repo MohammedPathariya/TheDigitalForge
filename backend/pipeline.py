@@ -3,12 +3,13 @@
 import json
 import re
 
-from crewai import Agent, Crew, Process
+from crewai import Agent, Crew
 
 from .agents import build_agents
 from .config import Settings
 from .models import DevelopmentPlan, RunResponse, RunState, RunStatus
 from .sandbox import build_sandbox_runner
+from .self_healing import FailureKind, failure_kind_from_output
 from .tasks import build_tasks
 from .tools import build_file_system_tools
 
@@ -39,6 +40,7 @@ class DevelopmentCrew:
             cpu_cores=self.settings.sandbox_cpu_cores,
             process_limit=self.settings.sandbox_process_limit,
         )
+        self.run_tests_tool = next(tool for tool in tools if tool.name == "run_tests")
         self.tasks = build_tasks(self.agents, tools)
 
     def run(self) -> RunResponse:
@@ -85,55 +87,112 @@ class DevelopmentCrew:
         developer_task = plan.developer_task
         tester_task = plan.tester_task
         test_results = ""
-        for attempt in range(1, self.settings.max_attempts + 1):
-            self.state.attempts = attempt
+        candidate_attempts = 0
+        infrastructure_retries = 0
+        self._run_developer(plan, developer_task)
+        self._run_test_author(plan, tester_task)
+
+        while candidate_attempts < self.settings.max_attempts:
+            test_results = self._run_tests(plan)
+            failure_kind = failure_kind_from_output(test_results)
+            if failure_kind is FailureKind.infrastructure:
+                infrastructure_retries += 1
+                if infrastructure_retries >= self.settings.max_attempts:
+                    return (
+                        f"{test_results}\nINFRASTRUCTURE RETRIES EXHAUSTED: "
+                        "candidate attempt was not consumed."
+                    )
+                continue
+
+            infrastructure_retries = 0
+            candidate_attempts += 1
+            self.state.attempts = candidate_attempts
+            if "ALL TESTS PASSED" in test_results:
+                return test_results
+            if candidate_attempts >= self.settings.max_attempts:
+                return test_results
+
+            if failure_kind is FailureKind.test:
+                file_to_fix = plan.test_file_name
+                next_task = (
+                    "Repair only the current test suite using this sanitized failure "
+                    f"evidence:\n{test_results}"
+                )
+            elif failure_kind in {FailureKind.timeout, FailureKind.resource}:
+                file_to_fix = plan.file_name
+                next_task = (
+                    "Repair only the current application code using this sanitized "
+                    f"failure evidence:\n{test_results}"
+                )
+            else:
+                repair = self._analyze_failure(plan, test_results)
+                file_to_fix = str(repair["file_to_fix"])
+                next_task = str(repair["next_task"])
+            if file_to_fix == plan.test_file_name:
+                tester_task = next_task
+                self._run_test_author(plan, tester_task)
+            elif file_to_fix == plan.file_name:
+                developer_task = next_task
+                self._run_developer(plan, developer_task)
+            else:
+                raise ValueError("Repair target must be the application or test file.")
+        return test_results
+
+    def _run_developer(self, plan: DevelopmentPlan, developer_task: str) -> None:
+        current_code = self.state.workspace.read(plan.file_name)
+        Crew(
+            agents=[self.agents["developer"]],
+            tasks=[self.tasks.develop],
+            verbose=False,
+        ).kickoff(
+            inputs={
+                "original_developer_task": plan.developer_task,
+                "developer_task": developer_task,
+                "file_name": plan.file_name,
+                "current_code": current_code or "<no existing application code>",
+            }
+        )
+
+    def _run_test_author(self, plan: DevelopmentPlan, tester_task: str) -> None:
+        current_tests = self.state.workspace.read(plan.test_file_name)
+        Crew(
+            agents=[self.agents["tester"]],
+            tasks=[self.tasks.test_suite],
+            verbose=False,
+        ).kickoff(
+            inputs={
+                "original_tester_task": plan.tester_task,
+                "tester_task": tester_task,
+                "file_name": plan.file_name,
+                "test_file_name": plan.test_file_name,
+                "current_tests": current_tests or "<no existing test code>",
+            }
+        )
+
+    def _run_tests(self, plan: DevelopmentPlan) -> str:
+        return str(self.run_tests_tool.run(test_file_path=plan.test_file_name))
+
+    def _analyze_failure(
+        self, plan: DevelopmentPlan, test_results: str
+    ) -> dict[str, object]:
+        current_code = self.state.workspace.read(plan.file_name)
+        current_tests = self.state.workspace.read(plan.test_file_name)
+        return _parse_json(
             Crew(
-                agents=[self.agents["developer"]],
-                tasks=[self.tasks.develop],
+                agents=[self.agents["lead"]],
+                tasks=[self.tasks.analyze_failure],
                 verbose=False,
             ).kickoff(
                 inputs={
-                    "developer_task": developer_task,
+                    "developer_task": plan.developer_task,
+                    "test_failure_log": test_results,
                     "file_name": plan.file_name,
+                    "test_file_name": plan.test_file_name,
+                    "current_code": current_code or "<application code unavailable>",
+                    "current_tests": current_tests or "<test code unavailable>",
                 }
             )
-            test_results = str(
-                Crew(
-                    agents=[self.agents["tester"]],
-                    tasks=[self.tasks.test_suite, self.tasks.execute_tests],
-                    process=Process.sequential,
-                    verbose=False,
-                ).kickoff(
-                    inputs={
-                        "tester_task": tester_task,
-                        "file_name": plan.file_name,
-                        "test_file_name": plan.test_file_name,
-                    }
-                )
-            )
-            if "ALL TESTS PASSED" in test_results:
-                break
-            if attempt < self.settings.max_attempts:
-                repair = _parse_json(
-                    Crew(
-                        agents=[self.agents["lead"]],
-                        tasks=[self.tasks.analyze_failure],
-                        verbose=False,
-                    ).kickoff(
-                        inputs={
-                            "developer_task": plan.developer_task,
-                            "test_failure_log": test_results,
-                            "file_name": plan.file_name,
-                            "test_file_name": plan.test_file_name,
-                        }
-                    )
-                )
-                next_task = str(repair["next_task"])
-                if repair.get("file_to_fix") == plan.test_file_name:
-                    tester_task = next_task
-                else:
-                    developer_task = next_task
-        return test_results
+        )
 
     def _generate_final_report(
         self, brief: str, tests_output: str, plan: DevelopmentPlan
