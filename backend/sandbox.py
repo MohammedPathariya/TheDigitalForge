@@ -171,6 +171,7 @@ class DockerSandboxRunner:
             "docker",
             "run",
             "--rm",
+            "--interactive",
             f"--name={container_name}",
             "--network=none",
             "--read-only",

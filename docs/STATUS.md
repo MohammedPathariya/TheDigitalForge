@@ -16,6 +16,9 @@ Day 3, Build sandbox execution, is complete on `mjp/revamp-digital-forge`.
 - End-of-phase review closed a Docker cleanup gap by assigning each container a unique
   name and force-removing it when the host-side CLI timeout fires, preventing an orphaned
   sandbox from continuing to consume resources.
+- Post-push CI diagnosis fixed benchmark input delivery by keeping Docker stdin attached.
+  The regression was invisible to the simple smoke test because only benchmark execution
+  sends serialized cases through stdin.
 - Added a pinned Python 3.11 Docker image with pytest and a restricted `.dockerignore` so
   repository files, Git data, virtual environments, and `.env` secrets are never sent to
   the Docker build context.
@@ -48,17 +51,17 @@ Day 3, Build sandbox execution, is complete on `mjp/revamp-digital-forge`.
 - `ruff check .` passed.
 - `ruff format --check .` passed with 28 files checked.
 - `mypy backend benchmark tests` passed with 28 source files checked.
-- `python -m pytest` completed with 30 tests passed and two Docker smoke tests skipped
-  because the local Docker daemon was not running.
+- The sandbox image built successfully and both live Docker smoke tests passed, including
+  benchmark evaluation with serialized hidden-case inputs.
+- `python -m pytest` passed with all 32 tests, including both Docker integration tests.
 - `python -m pip check` reported no broken requirements.
 - `python -m benchmark --help` exposed Docker and Modal backend selection.
 - `git diff --check` passed.
 
 ## Known risks and deferred work
 
-- Docker 28.0.4 is installed, but Docker Desktop's daemon was not running, so the image
-  build and live container smoke test could not be completed locally. CI now builds the
-  image and will run the same smoke test when the branch is published.
+- GitHub Actions must confirm the Docker stdin fix on its Ubuntu runner after the updated
+  branch is published.
 - Modal behavior is verified against the installed SDK and a contract-level fake, but no
   authenticated cloud sandbox was created. Credentials, workspace access, image build,
   cold-start behavior, and free-tier consumption remain unverified without spending or

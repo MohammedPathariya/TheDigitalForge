@@ -63,6 +63,7 @@ def test_docker_runner_enforces_isolation_and_resource_limits() -> None:
     assert result.exit_code == 0
     assert result.stdout == "sandboxed\n"
     assert command_runner.files == {"main.py": "print('sandboxed')\n"}
+    assert "--interactive" in command_runner.command
     assert "--network=none" in command_runner.command
     assert "--read-only" in command_runner.command
     assert "--cap-drop=ALL" in command_runner.command
