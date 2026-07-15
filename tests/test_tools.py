@@ -14,6 +14,17 @@ class PassingSandboxRunner:
         return SandboxResult(exit_code=0, duration_seconds=0.01)
 
 
+class CleanupFailingSandboxRunner:
+    name = "stub"
+
+    def run(self, request: SandboxRequest) -> SandboxResult:
+        return SandboxResult(
+            exit_code=0,
+            duration_seconds=0.01,
+            error="Sandbox cleanup failed.",
+        )
+
+
 def test_generated_tests_run_through_sandbox() -> None:
     workspace = RunWorkspace()
     workspace.write("solution.py", "def answer(): return 42\n")
@@ -34,3 +45,16 @@ def test_generated_tests_run_through_sandbox() -> None:
         "test_solution.py",
     }
     assert runner.request.command[:4] == ("python", "-B", "-m", "pytest")
+
+
+def test_sandbox_cleanup_failure_is_not_reported_as_success() -> None:
+    workspace = RunWorkspace()
+    workspace.write("solution.py", "def answer(): return 42\n")
+    workspace.write("test_solution.py", "def test_answer(): assert True\n")
+    tools = build_file_system_tools(workspace, CleanupFailingSandboxRunner())
+    run_tests = next(tool for tool in tools if tool.name == "run_tests")
+
+    result = run_tests.run(test_file_path="test_solution.py")
+
+    assert "FAILURE CLASS: infrastructure" in result
+    assert "RESPONSIBLE AGENT: system" in result

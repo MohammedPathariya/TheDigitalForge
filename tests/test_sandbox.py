@@ -7,11 +7,13 @@ from typing import Any
 import pytest
 
 from backend.sandbox import (
+    MAX_SANDBOX_OUTPUT_CHARACTERS,
     DockerSandboxRunner,
     ModalSandboxRunner,
     SandboxFile,
     SandboxLimits,
     SandboxRequest,
+    SandboxResult,
 )
 from benchmark.catalog import get_task
 from benchmark.evaluator import evaluate_candidate
@@ -28,6 +30,19 @@ def _request() -> SandboxRequest:
             process_limit=8,
         ),
     )
+
+
+def test_sandbox_result_bounds_captured_output() -> None:
+    result = SandboxResult(
+        stdout="a" * (MAX_SANDBOX_OUTPUT_CHARACTERS + 1),
+        stderr="b" * (MAX_SANDBOX_OUTPUT_CHARACTERS + 1),
+        duration_seconds=0.1,
+    )
+
+    assert len(result.stdout) == MAX_SANDBOX_OUTPUT_CHARACTERS
+    assert len(result.stderr) == MAX_SANDBOX_OUTPUT_CHARACTERS
+    assert "<sandbox output truncated>" in result.stdout
+    assert result.stdout.startswith("a") and result.stdout.endswith("a")
 
 
 @pytest.mark.parametrize("path", ["/tmp/x.py", "../x.py", "src/../../x.py"])

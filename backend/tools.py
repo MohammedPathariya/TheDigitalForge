@@ -12,6 +12,7 @@ from .sandbox import (
     SandboxRequest,
     SandboxRunner,
 )
+from .self_healing import build_repair_evidence
 from .workspace import RunWorkspace
 
 
@@ -82,15 +83,12 @@ def build_file_system_tools(
                 limits=limits,
             )
         )
-        if result.timed_out:
-            return "TESTS FAILED:\nSandbox execution timed out."
-        if result.error:
-            return f"TESTS FAILED:\nSandbox infrastructure error: {result.error}"
-        if result.exit_code == 0:
+        if result.exit_code == 0 and not result.timed_out and result.error is None:
             return "ALL TESTS PASSED"
-        return (
-            f"TESTS FAILED:\n--- STDOUT ---\n{result.stdout}\n"
-            f"--- STDERR ---\n{result.stderr}"
-        ).strip()
+        return build_repair_evidence(
+            result,
+            code_file_path=code_file_path,
+            test_file_path=normalized_test_path,
+        ).as_prompt()
 
     return [save_file, run_tests]
