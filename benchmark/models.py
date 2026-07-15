@@ -64,11 +64,12 @@ class TaskResult(BaseModel):
 class BenchmarkReport(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    schema_version: str = "1.0.0"
+    schema_version: str = "1.1.0"
     benchmark_version: str
     evaluator_sha256: str
     run_id: str
     model: str
+    sandbox_backend: str
     started_at: datetime
     completed_at: datetime
     tasks_passed: int = Field(ge=0)

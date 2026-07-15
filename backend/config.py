@@ -1,6 +1,7 @@
 """Typed application configuration."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,6 +18,13 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8501"]
     max_request_characters: int = Field(default=20_000, ge=1)
     max_attempts: int = Field(default=3, ge=1, le=3)
+    sandbox_backend: Literal["docker", "modal"] = "docker"
+    docker_sandbox_image: str = "digital-forge-sandbox:py311"
+    modal_sandbox_app: str = "digital-forge-sandbox"
+    sandbox_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    sandbox_memory_mib: int = Field(default=256, ge=32, le=1024)
+    sandbox_cpu_cores: float = Field(default=1.0, ge=0.1, le=2.0)
+    sandbox_process_limit: int = Field(default=64, ge=4, le=128)
 
     def require_openai_api_key(self) -> str:
         if not self.openai_api_key:

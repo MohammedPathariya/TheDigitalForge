@@ -9,6 +9,12 @@ from uuid import uuid4
 
 from openai import OpenAI
 
+from backend.sandbox import (
+    DockerSandboxRunner,
+    ModalSandboxRunner,
+    SandboxRunner,
+)
+
 from .catalog import BENCHMARK_VERSION, get_task, load_tasks
 from .evaluator import evaluate_candidate
 from .hidden_cases import evaluator_sha256
@@ -65,10 +71,12 @@ class ZeroShotBaselineRunner:
         generator: SolutionGenerator,
         model: str,
         output_root: Path,
+        sandbox_runner: SandboxRunner | None = None,
     ):
         self.generator = generator
         self.model = model
         self.output_root = output_root
+        self.sandbox_runner = sandbox_runner or DockerSandboxRunner()
 
     def run(self, tasks: Sequence[BenchmarkTask] | None = None) -> BenchmarkReport:
         selected = tuple(tasks or load_tasks())
@@ -83,6 +91,7 @@ class ZeroShotBaselineRunner:
             evaluator_sha256=evaluator_sha256(),
             run_id=run_id,
             model=self.model,
+            sandbox_backend=self.sandbox_runner.name,
             started_at=started_at,
             completed_at=utc_now(),
             tasks_passed=sum(result.passed for result in results),
@@ -97,7 +106,7 @@ class ZeroShotBaselineRunner:
         try:
             generated = self.generator.generate(task, self.model)
             candidate_path.write_text(generated.code, encoding="utf-8")
-            evaluation = evaluate_candidate(task, candidate_path)
+            evaluation = evaluate_candidate(task, candidate_path, self.sandbox_runner)
             return TaskResult(
                 task_id=task.id,
                 task_version=task.version,
@@ -143,10 +152,26 @@ def main(argv: Sequence[str] | None = None) -> None:
         default=Path("benchmark-results"),
         help="Directory for candidates and report artifacts",
     )
+    parser.add_argument(
+        "--sandbox",
+        choices=("docker", "modal"),
+        default="docker",
+        help="Isolated execution backend (default: docker)",
+    )
+    parser.add_argument(
+        "--modal-app",
+        default="digital-forge-sandbox",
+        help="Modal app used when --sandbox=modal",
+    )
     args = parser.parse_args(argv)
     tasks = [get_task(task_id) for task_id in args.task_ids] if args.task_ids else None
+    sandbox_runner: SandboxRunner = (
+        ModalSandboxRunner(args.modal_app)
+        if args.sandbox == "modal"
+        else DockerSandboxRunner()
+    )
     report = ZeroShotBaselineRunner(
-        OpenAISolutionGenerator(), args.model, args.output
+        OpenAISolutionGenerator(), args.model, args.output, sandbox_runner
     ).run(tasks)
     print(report.model_dump_json(indent=2))
 

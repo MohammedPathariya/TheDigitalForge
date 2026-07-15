@@ -15,6 +15,7 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r requirements.lock
+      - run: docker build -t digital-forge-sandbox:py311 -f sandbox/Dockerfile .
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy backend benchmark tests
