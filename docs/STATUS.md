@@ -84,6 +84,9 @@ accepted decisions. Day 7 deployment work has not started.
 - Required development plans, implementations, and generated tests to share the same public
   class names as well as function names, reducing model/test import drift on nested Pydantic
   tasks.
+- Removed horizontal scrolling from development plans. The two plan columns can now shrink
+  within their panel, and long filenames, field values, and list items wrap in place while
+  the existing vertical scrolling remains available.
 - Added a targeted PostCSS 8.5.19 override because Next.js 16.2.10 pins a version covered
   by a moderate-severity advisory. The override passes the frontend build and leaves the
   production dependency audit clean.
