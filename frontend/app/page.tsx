@@ -62,6 +62,13 @@ const PIPELINE: Array<{
 
 type View = "overview" | "attempts" | "artifacts" | "evidence" | "report";
 type Health = "checking" | "online" | "waking" | "offline";
+type PlanInstruction =
+  | string
+  | number
+  | boolean
+  | null
+  | PlanInstruction[]
+  | { [key: string]: PlanInstruction };
 
 function stageRank(stage: RunStage): number {
   if (stage === "queued") return -1;
@@ -81,6 +88,34 @@ function formatTime(value: string): string {
 
 function formatStage(stage: RunStage): string {
   return stage.charAt(0).toUpperCase() + stage.slice(1);
+}
+
+function humanizeKey(value: string): string {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function parsePlanInstruction(value: string): PlanInstruction {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return value;
+  try {
+    return JSON.parse(trimmed) as PlanInstruction;
+  } catch {
+    return value;
+  }
+}
+
+function splitInlineSteps(value: string): string[] {
+  const normalized = value.trim();
+  if (!normalized) return [];
+  const numbered = normalized.split(/\s+(?=\d+\.\s+)/);
+  if (numbered.length > 1 && numbered.every((item) => /^\d+\.\s+/.test(item))) {
+    return numbered.map((item) => item.replace(/^\d+\.\s+/, "").trim());
+  }
+  const dashed = normalized.split(/\s+-\s+/);
+  if (dashed.length > 1) {
+    return dashed.map((item) => item.replace(/^-\s*/, "").trim()).filter(Boolean);
+  }
+  return [];
 }
 
 function candidateAttemptsUsed(run: RunSnapshot): number {
@@ -170,17 +205,17 @@ export default function ForgePage() {
   }, [runId]);
 
   useEffect(() => {
-    if (!run || terminal) return;
-    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    if (!runId || terminal) return;
+    const timer = window.setInterval(() => setClock(Date.now()), 250);
     return () => window.clearInterval(timer);
-  }, [run, terminal]);
+  }, [runId, terminal]);
 
   const elapsed = useMemo(() => {
     if (!run) return null;
     const end = terminal
       ? new Date(run.updated_at).getTime()
       : (clock ?? new Date(run.updated_at).getTime());
-    return Math.max(0, Math.round((end - new Date(run.created_at).getTime()) / 1000));
+    return Math.max(0, Math.floor((end - new Date(run.created_at).getTime()) / 1000));
   }, [clock, run, terminal]);
 
   async function submit(event: FormEvent) {
@@ -386,6 +421,24 @@ function RunWorkspace({
     .map((event) => stageRank(event.stage))
     .filter((rank) => rank >= 0 && rank < PIPELINE.length);
   const terminalRank = reachedRanks.length ? Math.max(...reachedRanks) : -1;
+  const pipelineFailed = run.status === "failed" && Boolean(run.error);
+  const finalAttempt = run.attempts[run.attempts.length - 1];
+  const routedAttempt = [...run.attempts]
+    .reverse()
+    .find((attempt) => attempt.repair_target !== null);
+  const outcomeFailureStage: RunStage | null =
+    routedAttempt?.repair_target === "tests"
+      ? "testing"
+      : routedAttempt?.repair_target === "application"
+        ? "developing"
+        : finalAttempt?.failure_kind === "test"
+          ? "testing"
+          : finalAttempt &&
+              ["candidate", "timeout", "resource"].includes(
+                finalAttempt.failure_kind ?? "",
+              )
+            ? "developing"
+            : null;
   const statusLabel =
     run.cancel_requested && !terminal ? "Cancellation requested" : run.status;
   const candidateAttempts = candidateAttemptsUsed(run);
@@ -470,10 +523,15 @@ function RunWorkspace({
               !terminal &&
               (run.stage === item.stage ||
                 (run.stage === "repairing" && item.stage === "testing"));
-            const isFailed = run.status === "failed" && terminalRank === index;
+            const isFailed =
+              run.status === "failed" &&
+              (pipelineFailed
+                ? terminalRank === index
+                : item.stage === outcomeFailureStage);
             const isCancelled = run.status === "cancelled" && terminalRank === index;
             const isComplete =
               run.status === "completed" ||
+              (run.status === "failed" && !pipelineFailed) ||
               (terminal ? terminalRank > index : currentRank > index);
             const stageClass = isRunning
               ? "stage-running"
@@ -541,10 +599,10 @@ function RunWorkspace({
 function Overview({ run }: { run: RunSnapshot }) {
   return (
     <div className="overview-grid">
-      <article className="detail-card">
+      <article className="detail-card overview-panel">
         <span className="section-kicker">Current activity</span>
         <h3>{run.events.at(-1)?.message ?? "The run is queued."}</h3>
-        <div className="event-list">
+        <div className="event-list custom-scroll">
           {[...run.events].reverse().map((event, index) => (
             <div className="event-row" key={`${event.created_at}-${index}`}>
               <span className="event-marker" />
@@ -557,19 +615,21 @@ function Overview({ run }: { run: RunSnapshot }) {
           ))}
         </div>
       </article>
-      <article className="detail-card">
+      <article className="detail-card overview-panel">
         <span className="section-kicker">Development plan</span>
         {run.plan ? (
-          <div className="plan-grid">
-            <div>
-              <span>Application</span>
-              <strong>{run.plan.file_name}</strong>
-              <p>{run.plan.developer_task}</p>
-            </div>
-            <div>
-              <span>Test suite</span>
-              <strong>{run.plan.test_file_name}</strong>
-              <p>{run.plan.tester_task}</p>
+          <div className="plan-scroll custom-scroll">
+            <div className="plan-grid">
+              <PlanSummary
+                title="Application"
+                fileName={run.plan.file_name}
+                instruction={run.plan.developer_task}
+              />
+              <PlanSummary
+                title="Test suite"
+                fileName={run.plan.test_file_name}
+                instruction={run.plan.tester_task}
+              />
             </div>
           </div>
         ) : (
@@ -578,6 +638,65 @@ function Overview({ run }: { run: RunSnapshot }) {
       </article>
     </div>
   );
+}
+
+function PlanSummary({
+  title,
+  fileName,
+  instruction,
+}: {
+  title: string;
+  fileName: string;
+  instruction: string;
+}) {
+  return (
+    <div className="plan-card">
+      <span>{title}</span>
+      <strong>{fileName}</strong>
+      <InstructionView value={parsePlanInstruction(instruction)} />
+    </div>
+  );
+}
+
+function InstructionView({ value }: { value: PlanInstruction }) {
+  if (Array.isArray(value)) {
+    return (
+      <ul className="instruction-list">
+        {value.map((item, index) => (
+          <li key={index}>
+            <InstructionView value={item} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (value && typeof value === "object") {
+    return (
+      <dl className="instruction-fields">
+        {Object.entries(value).map(([key, item]) => (
+          <div key={key}>
+            <dt>{humanizeKey(key)}</dt>
+            <dd>
+              <InstructionView value={item} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  if (typeof value === "string") {
+    const steps = splitInlineSteps(value);
+    if (steps.length > 1) {
+      return (
+        <ul className="instruction-list">
+          {steps.map((step, index) => (
+            <li key={index}>{step}</li>
+          ))}
+        </ul>
+      );
+    }
+  }
+  return <p>{value === null ? "None" : String(value)}</p>;
 }
 
 function Attempts({ run }: { run: RunSnapshot }) {

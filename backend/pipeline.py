@@ -238,9 +238,10 @@ class DevelopmentCrew:
                 candidate_attempt=candidate_attempts,
                 repair_target=repair_target,
             )
+            repair_subject = "test suite" if repair_target == "tests" else "application"
             self._transition(
                 RunStage.repairing,
-                f"The {repair_target} is being repaired before the next attempt.",
+                f"The {repair_subject} is being repaired before the next attempt.",
             )
             self._checkpoint()
             if file_to_fix == plan.test_file_name:

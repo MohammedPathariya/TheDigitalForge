@@ -62,6 +62,22 @@ def test_classifies_candidate_and_broken_test_failures() -> None:
     assert failure_kind_from_output(broken_test.as_prompt()) is FailureKind.test
 
 
+def test_application_syntax_failure_routes_to_developer_with_contract_guidance() -> (
+    None
+):
+    candidate = _evidence(
+        SandboxResult(
+            duration_seconds=0.1,
+            exit_code=1,
+            stderr='File "/workspace/solution.py", line 3\nSyntaxError: invalid syntax',
+        )
+    )
+
+    assert candidate.failure_kind is FailureKind.candidate
+    assert candidate.target is RepairTarget.developer
+    assert "exact function names" in candidate.summary
+
+
 def test_sanitizes_and_bounds_repair_output() -> None:
     raw = (
         "\x1b[31m/workspace/solution.py\x1b[0m "

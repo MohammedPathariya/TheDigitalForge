@@ -59,7 +59,8 @@ def build_agents() -> dict[str, Agent]:
         role="Quality Assurance Tester",
         goal=(
             "Test generated code against the developer task and report failures precisely. "
-            "Tests must reflect the requirements rather than add new interpretations."
+            "Tests must reflect only the stated requirements, must not add stricter casing "
+            "or error-message rules, and must remove unsupported assertions during repair."
         ),
         backstory=(
             "Argus validates every stated requirement and provides actionable evidence when "

@@ -108,10 +108,17 @@ def build_repair_evidence(
             stdout=stdout,
             stderr=stderr,
         )
+    summary = (
+        "The application has a syntax or indentation error. Repair the application first, "
+        "preserving the exact function names, imports, and return schema required by the "
+        "original task."
+        if re.search(r"syntaxerror|indentationerror", combined)
+        else "The candidate failed the generated test suite. Diagnose the assertion or exception and repair only the application code."
+    )
     return RepairEvidence(
         failure_kind=FailureKind.candidate,
         target=RepairTarget.developer,
-        summary="The candidate failed the generated test suite. Diagnose the assertion or exception and repair only the application code.",
+        summary=summary,
         stdout=stdout,
         stderr=stderr,
     )

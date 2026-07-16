@@ -39,6 +39,17 @@ def test_only_lead_and_developer_tasks_receive_retrieval_tool() -> None:
     assert tasks.final_report.tools == []
 
 
+def test_test_author_cannot_add_unstated_contract_rules() -> None:
+    tasks = build_tasks(build_agents(), [])
+
+    assert "case-sensitive unless" in tasks.test_suite.description
+    assert (
+        "Do not assert an exact exception message unless"
+        in tasks.test_suite.description
+    )
+    assert "remove or correct assertions" in tasks.test_suite.description
+
+
 def test_retrieval_events_are_isolated_between_runs() -> None:
     first = RunState(request="first")
     second = RunState(request="second")
