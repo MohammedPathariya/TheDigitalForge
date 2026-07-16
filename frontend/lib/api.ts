@@ -19,6 +19,8 @@ export type RunStage =
   | "complete"
   | "cancelled";
 
+export type RunAgent = "janus" | "athena" | "hephaestus" | "argus";
+
 export interface DevelopmentPlan {
   file_name: string;
   test_file_name: string;
@@ -71,6 +73,7 @@ export interface RunSnapshot {
   request: string;
   status: RunStatus;
   stage: RunStage;
+  active_agent?: RunAgent | null;
   attempts_used: number;
   max_attempts: number;
   cancel_requested: boolean;

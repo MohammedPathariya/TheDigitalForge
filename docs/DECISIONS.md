@@ -41,3 +41,13 @@ All seven phases will proceed sequentially on `mjp/revamp-digital-forge`, with f
 **Status:** Accepted
 
 Resume and LinkedIn percentages will be replaced with actual experiment results. Reports will include raw counts, model configuration, prompt versions, and task-level outcomes.
+
+## D008: Declare an offline sandbox capability set
+
+**Status:** Accepted
+
+Docker and Modal use one pinned package set for network-isolated execution. The set covers
+the versioned libraries represented in the bundled documentation corpus plus pytest and
+HTTP testing support. Missing packages from this declared set are system configuration
+failures; imports outside it remain application or generated-test responsibilities. The
+pipeline does not install arbitrary packages during a run.

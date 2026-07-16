@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from crewai import Agent, Task
 from crewai.tools import BaseTool
 
+from .sandbox_dependencies import SANDBOX_CAPABILITY_SUMMARY
+
 
 @dataclass(frozen=True)
 class PipelineTasks:
@@ -46,11 +48,16 @@ def build_tasks(
             "suite, 'developer_task' as one JSON string with precise functions, inputs, "
             "outputs, and logic, and 'tester_task' as one JSON string with the test "
             "strategy and specific cases. The developer_task and tester_task must use the "
-            "same exact function names, file names, return keys, and edge-case behavior "
+            "same exact public class and function names, file names, return keys, and "
+            "edge-case behavior "
             "from the brief. Do not rename a requested function or invent a different "
             "output schema. Do not add case-insensitive behavior or exact exception-message "
             "requirements unless the brief explicitly requires them. Do not return nested "
-            "objects or arrays for developer_task or tester_task. When the brief "
+            "objects or arrays for developer_task or tester_task. When wording such as "
+            "'normalize' is ambiguous, choose the narrowest behavior directly supported by "
+            "the brief and state it identically in both tasks. The offline sandbox provides "
+            f"these pinned packages: {SANDBOX_CAPABILITY_SUMMARY}. Do not introduce an "
+            "unrequested package. When the brief "
             "depends on a third-party API, use search_official_documentation before "
             "finalizing API names or parameters."
         ),
@@ -68,11 +75,13 @@ def build_tasks(
             "is present, repair that code and preserve unaffected behavior.\n\nOriginal "
             "Developer Task:\n'''\n{original_developer_task}\n'''\n\nCurrent "
             "Instruction:\n'''\n{developer_task}\n'''\n\nCurrent Code:\n'''\n"
-            "{current_code}\n'''\n\nUse the exact function names, file name, return keys, and behavior "
+            "{current_code}\n'''\n\nUse the exact public class and function names, file name, return keys, and behavior "
             "required by the original developer task. During repair, inspect the current "
             "code for SyntaxError, indentation errors, missing symbols, and mismatches "
             "with the tester's expected import or return schema. Make the smallest fix and "
-            "save only the application code to {file_name}. Use "
+            "save only the application code to {file_name}. The offline sandbox provides "
+            f"these pinned packages: {SANDBOX_CAPABILITY_SUMMARY}. Do not introduce an "
+            "unrequested dependency. Use "
             "search_official_documentation before writing third-party API calls."
         ),
         expected_output="The saved Python file path.",
@@ -86,16 +95,19 @@ def build_tasks(
             "present, repair only those tests and preserve unaffected coverage.\n\nOriginal "
             "Testing Plan:\n'''\n{original_tester_task}\n'''\n\nCurrent Testing "
             "Instruction:\n'''\n{tester_task}\n'''\n\nCurrent Tests:\n'''\n"
-            "{current_tests}\n'''\n\nUse the exact application file name, function names, return keys, and "
+            "{current_tests}\n'''\n\nUse the exact application file name, public class and function names, return keys, and "
             "edge-case behavior from the original testing plan. Import the requested "
             "symbol from the requested application module; never substitute a similar "
             "function name or invent a different output schema. Treat strings and identifiers "
             "as case-sensitive unless the original plan explicitly requires case-insensitive "
             "behavior. Do not assert an exact exception message unless its text is explicitly "
-            "required. During repair, remove or correct assertions that encode unstated "
+            "required. Do not invent normalization, response bodies, or validation rules "
+            "that are absent from the original plan. During repair, remove or correct assertions that encode unstated "
             "requirements instead of preserving them. Before saving, verify that the test "
             "file is complete, contains no Markdown fences, and is syntactically valid Python. "
-            "Use save_file to save it to {test_file_name}."
+            "The offline sandbox provides these pinned packages: "
+            f"{SANDBOX_CAPABILITY_SUMMARY}. Do not import an unrequested dependency. Use "
+            "save_file to save it to {test_file_name}."
         ),
         expected_output="The saved pytest file path.",
         agent=agents["tester"],

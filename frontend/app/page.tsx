@@ -8,6 +8,7 @@ import {
   cancelRun,
   checkHealth,
   getRun,
+  RunAgent,
   RunSnapshot,
   RunStage,
   startRun,
@@ -27,36 +28,42 @@ const PIPELINE: Array<{
   agent: string;
   role: string;
   description: string;
+  activeAgent: RunAgent;
 }> = [
   {
     stage: "briefing",
     agent: "Janus",
     role: "Client liaison",
     description: "Translates the request into a precise technical brief.",
+    activeAgent: "janus",
   },
   {
     stage: "planning",
     agent: "Athena",
     role: "Strategic lead",
     description: "Builds the plan and routes repairs to the right specialist.",
+    activeAgent: "athena",
   },
   {
     stage: "developing",
     agent: "Hephaestus",
     role: "Principal developer",
     description: "Writes and repairs the isolated Python implementation.",
+    activeAgent: "hephaestus",
   },
   {
     stage: "testing",
     agent: "Argus",
     role: "Quality assurance",
     description: "Authors tests and validates the candidate in the sandbox.",
+    activeAgent: "argus",
   },
   {
     stage: "reporting",
     agent: "Janus",
     role: "Final report",
     description: "Packages the verified artifacts and evidence for review.",
+    activeAgent: "janus",
   },
 ];
 
@@ -75,6 +82,23 @@ function stageRank(stage: RunStage): number {
   if (stage === "repairing") return 3;
   if (stage === "complete" || stage === "cancelled") return PIPELINE.length;
   return PIPELINE.findIndex((item) => item.stage === stage);
+}
+
+function activePipelineIndex(run: RunSnapshot): number {
+  const reportedIndex = PIPELINE.findIndex(
+    (item) =>
+      item.activeAgent === run.active_agent &&
+      (run.active_agent !== "janus" || item.stage === run.stage),
+  );
+  if (reportedIndex >= 0) return reportedIndex;
+
+  const activity = run.events.at(-1)?.message.toLowerCase() ?? "";
+  if (activity.includes("argus")) return 3;
+  if (activity.includes("hephaestus")) return 2;
+  if (activity.includes("athena")) return 1;
+  if (activity.includes("janus")) return run.stage === "reporting" ? 4 : 0;
+  if (run.stage === "repairing") return activity.includes("test") ? 3 : 2;
+  return stageRank(run.stage);
 }
 
 function formatTime(value: string): string {
@@ -423,6 +447,8 @@ function RunWorkspace({
   const terminalRank = reachedRanks.length ? Math.max(...reachedRanks) : -1;
   const pipelineFailed = run.status === "failed" && Boolean(run.error);
   const finalAttempt = run.attempts[run.attempts.length - 1];
+  const unresolvedTestFailure =
+    finalAttempt !== undefined && finalAttempt.status !== "passed";
   const routedAttempt = [...run.attempts]
     .reverse()
     .find((attempt) => attempt.repair_target !== null);
@@ -442,6 +468,17 @@ function RunWorkspace({
   const statusLabel =
     run.cancel_requested && !terminal ? "Cancellation requested" : run.status;
   const candidateAttempts = candidateAttemptsUsed(run);
+  const activeIndex = activePipelineIndex(run);
+  const pipelineTitle =
+    run.status === "failed" && !run.error
+      ? "Needs manual review"
+      : run.status === "failed"
+        ? "Pipeline failed"
+        : run.status === "completed"
+          ? "Complete"
+          : run.status === "cancelled"
+            ? "Stopped"
+            : formatStage(run.stage);
 
   return (
     <div className="run-page">
@@ -500,7 +537,7 @@ function RunWorkspace({
         <div className="pipeline-heading">
           <div>
             <span className="section-kicker">Live pipeline</span>
-            <h2 id="pipeline-title">{formatStage(run.stage)}</h2>
+            <h2 id="pipeline-title">{pipelineTitle}</h2>
           </div>
           {!terminal ? (
             <button
@@ -519,12 +556,9 @@ function RunWorkspace({
         </div>
         <div className="pipeline-grid">
           {PIPELINE.map((item, index) => {
-            const isRunning =
-              !terminal &&
-              (run.stage === item.stage ||
-                (run.stage === "repairing" && item.stage === "testing"));
+            const isRunning = !terminal && activeIndex === index;
             const isFailed =
-              run.status === "failed" &&
+              (run.status === "failed" || unresolvedTestFailure) &&
               (pipelineFailed
                 ? terminalRank === index
                 : item.stage === outcomeFailureStage);
@@ -532,7 +566,11 @@ function RunWorkspace({
             const isComplete =
               run.status === "completed" ||
               (run.status === "failed" && !pipelineFailed) ||
-              (terminal ? terminalRank > index : currentRank > index);
+              (terminal
+                ? terminalRank > index
+                : activeIndex >= 0
+                  ? activeIndex > index
+                  : currentRank > index);
             const stageClass = isRunning
               ? "stage-running"
               : isFailed

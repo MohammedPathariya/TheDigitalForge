@@ -41,18 +41,32 @@ The benchmark owns its prompts, metadata, reference behavior, and hidden tests. 
 - `ModalSandboxRunner` for the free-tier public demo.
 
 Both return structured stdout, stderr, exit status, duration, timeout status, and test results.
+Because execution is network-isolated, Docker and Modal build from the same pinned sandbox
+capability set. It includes the libraries covered by the bundled API documentation plus
+pytest and HTTP test support. Agent prompts expose this set so generated code and tests do
+not silently assume arbitrary packages are available.
 
 ### Self-healing
 
 Failed executions are classified and converted into sanitized repair evidence. The original code is repaired and re-executed with a maximum of three total attempts. Infrastructure failures do not consume a candidate attempt.
+Missing declared sandbox dependencies are non-retryable configuration failures and stop
+immediately. Missing unrequested imports are attributed to the application or generated
+test file that introduced them.
 
 ### Retrieval
 
 ChromaDB stores chunks from version-pinned official documentation. Retrieval results include source metadata and are logged with each run. The hosted backend uses a prebuilt index bundled with the deployment.
+Queries that explicitly name an indexed library return only that library's sources. Queries
+without an explicit library omit zero-overlap chunks instead of padding results with
+unrelated documentation.
 
 ### Frontend
 
-The Next.js interface submits runs, polls for status, displays attempts and evidence, and presents precomputed benchmark results. The public demo permits one active run at a time.
+The Next.js interface submits runs, polls for status and explicit active-agent ownership,
+displays attempts and evidence, and presents precomputed benchmark results. A completed
+report remains distinct from a successful test outcome, so failed candidates end in a
+manual-review state rather than appearing complete. The public demo permits one active run
+at a time.
 
 ## Deployment
 
