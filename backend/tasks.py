@@ -19,7 +19,9 @@ class PipelineTasks:
 
 
 def build_tasks(
-    agents: dict[str, Agent], file_system_tools: Sequence[BaseTool]
+    agents: dict[str, Agent],
+    file_system_tools: Sequence[BaseTool],
+    retrieval_tools: Sequence[BaseTool] = (),
 ) -> PipelineTasks:
     """Create tasks bound to one run's agents and workspace tools."""
     brief = Task(
@@ -42,13 +44,16 @@ def build_tasks(
             "{technical_brief}\n'''\n\nReturn one valid JSON object with four keys: "
             "'file_name' for a PEP 8 Python filename, 'test_file_name' for its pytest "
             "suite, 'developer_task' with precise functions, inputs, outputs, and logic, "
-            "and 'tester_task' with the test strategy and specific cases."
+            "and 'tester_task' with the test strategy and specific cases. When the brief "
+            "depends on a third-party API, use search_official_documentation before "
+            "finalizing API names or parameters."
         ),
         expected_output=(
             "A valid JSON object with file_name, test_file_name, developer_task, and "
             "tester_task."
         ),
         agent=agents["lead"],
+        tools=list(retrieval_tools),
     )
     develop = Task(
         description=(
@@ -57,11 +62,12 @@ def build_tasks(
             "is present, repair that code and preserve unaffected behavior.\n\nOriginal "
             "Developer Task:\n'''\n{original_developer_task}\n'''\n\nCurrent "
             "Instruction:\n'''\n{developer_task}\n'''\n\nCurrent Code:\n'''\n"
-            "{current_code}\n'''\n\nUse save_file to save the code to {file_name}."
+            "{current_code}\n'''\n\nUse search_official_documentation before writing "
+            "third-party API calls. Use save_file to save the code to {file_name}."
         ),
         expected_output="The saved Python file path.",
         agent=agents["developer"],
-        tools=list(file_system_tools),
+        tools=[*file_system_tools, *retrieval_tools],
     )
     test_suite = Task(
         description=(
@@ -95,10 +101,13 @@ def build_tasks(
             "{test_file_name}.\n\nOriginal Developer Task:\n'''\n{developer_task}\n'''\n\n"
             "Current Application Code:\n'''\n{current_code}\n'''\n\nCurrent Test Code:\n'''\n"
             "{current_tests}\n'''\n\n"
-            "Sanitized Test Failure Evidence:\n'''\n{test_failure_log}\n'''"
+            "Sanitized Test Failure Evidence:\n'''\n{test_failure_log}\n'''\n\nUse "
+            "search_official_documentation when the root cause depends on third-party API "
+            "behavior."
         ),
         expected_output="A valid JSON repair decision.",
         agent=agents["lead"],
+        tools=list(retrieval_tools),
     )
     final_report = Task(
         description=(
@@ -108,6 +117,7 @@ def build_tasks(
             "log from {test_results} if tests failed, the code from {file_name}, and the tests "
             "from {test_file_name}.\n\nInitial Brief:\n'''\n{technical_brief}\n'''\n\n"
             "Final Code:\n'''\n{final_code}\n'''\n\nTests:\n'''\n{final_tests}\n'''"
+            "\n\nRetrieved Documentation Sources:\n'''\n{retrieval_evidence}\n'''"
         ),
         expected_output="An accurate Markdown report using only the supplied context.",
         agent=agents["liaison"],

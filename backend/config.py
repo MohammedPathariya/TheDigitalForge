@@ -1,10 +1,13 @@
 """Typed application configuration."""
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -25,6 +28,8 @@ class Settings(BaseSettings):
     sandbox_memory_mib: int = Field(default=256, ge=32, le=1024)
     sandbox_cpu_cores: float = Field(default=1.0, ge=0.1, le=2.0)
     sandbox_process_limit: int = Field(default=64, ge=4, le=128)
+    rag_index_path: Path = PROJECT_ROOT / "rag" / "index" / "v1"
+    rag_result_limit: int = Field(default=3, ge=1, le=5)
 
     def require_openai_api_key(self) -> str:
         if not self.openai_api_key:

@@ -2,95 +2,103 @@
 
 ## Current phase
 
-Day 4, Implement self-healing, is complete on `mjp/revamp-digital-forge`.
-The focused full review confirms Days 1 through 4 are implemented consistently with the
-current week plan, architecture, and accepted decisions.
+Day 5, Add ChromaDB RAG, is complete on `mjp/revamp-digital-forge`.
+Days 1 through 5 remain consistent with the current week plan, architecture, and
+accepted decisions.
 
 ## Completed work
 
-- Added deterministic failure classification for candidate, test, timeout, resource, and
-  infrastructure failures. Timeout and resource failures route to the developer, invalid
-  test suites route to the tester, and infrastructure failures stay out of the agent
-  repair path.
-- Added structured repair evidence with explicit failure class, responsible agent, repair
-  guidance, stdout, and stderr. Repair output removes ANSI and unsafe control characters,
-  redacts common credential forms, replaces sandbox host paths, and caps each stream at
-  8,000 characters before it enters an agent prompt.
-- Bounded stored sandbox stdout and stderr to 32,000 characters each while preserving the
-  beginning and end of oversized streams for diagnosis.
-- Changed the retry controller to consume the test tool's exact result directly instead of
-  asking the tester agent to reinterpret execution status.
-- Fixed the retry workflow so the first candidate and tests are preserved. Athena now
-  routes a targeted repair, only the responsible file is regenerated, and the unchanged
-  counterpart is reused for the next execution.
-- Enforced three total candidate attempts. Timeout and resource failures consume an
-  attempt; infrastructure failures re-execute the same artifacts without consuming one.
-  Three consecutive infrastructure failures stop the run so unavailable infrastructure
-  cannot create an infinite retry loop.
-- Added focused tests for all failure classes, routing, sanitization, output bounds,
-  selective candidate and test repair, the three-attempt ceiling, infrastructure retry
-  accounting and exhaustion, and cleanup failures that occur after a zero exit status.
-- Full-review correction: repair agents and Athena now receive the original requirements,
-  current application code, and current tests. Stateless repair crews therefore edit the
-  actual failed artifacts instead of attempting to reconstruct them without context.
-- Full-review correction: clear test failures route directly to the tester, while timeout
-  and resource failures route directly to the developer. Only ambiguous candidate/test
-  assertion failures require Athena's root-cause decision.
-- Full-review correction: `DevelopmentPlan` now rejects unsafe, non-PEP-8, or mismatched
-  application and test filenames before any agent tool executes.
+- Added a versioned `1.0.0` documentation corpus with pinned official references for
+  OpenAI 2.45.0, FastAPI 0.139.0, pydantic-settings 2.10.1, Modal 1.5.1, and ChromaDB
+  1.1.1. The source manifest records library versions, document versions, URLs, local
+  content paths, and SHA-256 content digests.
+- Added deterministic Markdown section chunking and application-owned token-hash
+  embeddings. The versioned ChromaDB index contains 12 chunks and is bundled at
+  `rag/index/v1` for local and hosted backend use without an embedding-model download.
+- Added index integrity checks for source digests, manifest hash, corpus version,
+  embedding version, and stored chunk count. A stale, incomplete, or tampered corpus is
+  rejected before retrieval.
+- Added a bounded retrieval tool that returns up to five cited official-documentation
+  excerpts. Only Athena planning and repair tasks and Hephaestus implementation tasks
+  receive the tool. Janus and Argus do not receive it.
+- Added per-run retrieval events to workflow state and API responses. Logged evidence
+  includes the query and retrieved source metadata while excluding full chunk content
+  from response serialization. Final reports receive the cited source IDs, titles, URLs,
+  and retrieval queries.
+- Added a separate five-case API evaluation catalog and runner for RAG and no-RAG model
+  configurations. Reports record the exact model, corpus version, prompt version,
+  configuration, response IDs, token usage, retrieved sources, and required or forbidden
+  API terms.
+- Added focused tests for corpus integrity, index construction, expected-source retrieval,
+  tool source logging, per-run isolation, agent access boundaries, evaluation artifacts,
+  and separate RAG versus no-RAG scoring.
+- Declared the existing ChromaDB pin as a direct runtime dependency and extended CI type
+  checking to include the `rag` package.
+- End-of-phase review correction: added a narrow `.gitignore` exception for the bundled
+  `rag/index/v1/chroma.sqlite3` database. The global `*.sqlite3` rule previously excluded
+  the collection database, so a clean checkout or deployment would receive incomplete
+  index artifacts even though retrieval worked in the original local checkout.
+- End-of-phase review verification: added explicit coverage that the bundled Chroma
+  database is present and nonempty, and confirmed FastAPI serializes retrieved source
+  metadata without exposing full document chunks.
 
 ## Verification performed
 
 - `ruff check .` passed.
-- `ruff format --check .` passed with 30 files checked.
-- `mypy backend benchmark tests` passed with 30 source files checked.
-- `python -m pytest` passed with 46 tests; the two live Docker integration tests were
+- `ruff format --check .` passed with 40 files checked.
+- `mypy backend benchmark rag tests` passed with 40 source files checked.
+- `python -m pytest -q` passed with 58 tests; the two live Docker integration tests were
   skipped because the local Docker daemon was unavailable.
+- The focused Day 5 suite passed with 11 tests.
 - `python -m pip check` reported no broken requirements.
-- Benchmark inspection reconfirmed 20 unique tasks, a 10 easy and 10 medium split, 20
-  matching hidden-case collections, and 94 total hidden cases.
-- `python -m benchmark --help` passed and exposed explicit model, task, output, Docker,
-  and Modal selection.
-- Backend, pipeline, and benchmark import smoke tests passed with CrewAI storage redirected
-  to a writable temporary home for the restricted review environment.
-- Direct CrewAI task interpolation confirmed repair prompts receive the current artifacts
-  and original requirements on repeated task use.
-- Tracked-file secret scanning found no committed private keys or live OpenAI credentials.
+- `python -m rag.index` rebuilt the bundled version `1.0.0` index with 12 chunks.
+- All five API evaluation prompts retrieved their expected source within the top three
+  results.
+- SQLite `PRAGMA integrity_check` returned `ok`; all 12 stored chunk IDs and documents
+  matched the versioned, digest-verified corpus.
+- Installed OpenAI, FastAPI, pydantic-settings, Modal, and ChromaDB versions matched the
+  source manifest versions.
+- `git check-ignore -q rag/index/v1/chroma.sqlite3` returned exit code 1, and
+  `git ls-files --others --exclude-standard` listed the database as includable.
+- FastAPI OpenAPI generation and response serialization confirmed the retrieval schema
+  exposes source metadata but excludes full chunk content.
+- `python -m rag.index --help` and `python -m rag.evaluation --help` passed.
+- `uv pip compile requirements-dev.txt --python .venv/bin/python --output-file
+  requirements.lock` completed. No package version changed; the lock now records ChromaDB
+  as both direct and CrewAI-transitive.
 - `git diff --check` passed.
+- Focused secret scanning found no private keys or live OpenAI credentials in the Day 5
+  diff; the only API-key match was the documented placeholder in `.env.example`.
 
 ## Known risks and deferred work
 
-- Live Docker execution was not reverified during Day 4 because the local daemon was
-  unavailable. Contract-level sandbox, tool, classification, and retry tests passed.
-- Modal behavior remains verified against the installed SDK and a contract-level fake,
-  not an authenticated cloud sandbox. Credentials, workspace access, image build,
-  cold-start behavior, and free-tier consumption remain unverified.
-- The Docker CLI and Modal SDK collect process streams before `SandboxResult` applies its
-  32,000-character storage bound. Agent-visible evidence is bounded and sanitized, but
-  backend-specific streaming capture would be needed to bound transient host buffering.
-- Candidate-versus-test classification is deliberately conservative. Clear test syntax,
-  collection, and no-test failures route to the tester; ordinary assertion failures default
-  to candidate code, with Athena allowed to reroute only when the sanitized evidence and
-  original requirements support it.
-- A paid live model run remains intentionally unexecuted, so model-generated repair
-  quality and the complete self-healing loop are not yet verified end to end.
-- No dedicated dependency vulnerability scanner is installed. Exact runtime and development
-  pins were cross-checked against `requirements.lock`, and `pip check` passed, but this
-  review did not perform a current external CVE database scan.
-- FastAPI and CrewAI continue to emit the previously recorded upstream deprecation
-  warnings during the full test suite.
+- The corpus is deliberately small and pinned. Library upgrades require a reviewed source
+  snapshot, new digests, a corpus version bump, an index rebuild, and an evaluation rerun.
+- Deterministic token-hash embeddings keep the bundled index reproducible and avoid model
+  downloads, but provide weaker semantic matching than a dedicated embedding model. The
+  five current API cases pass expected-source retrieval; broader retrieval quality has not
+  been measured.
+- The RAG and no-RAG evaluation harness is verified with deterministic test generators.
+  A paid live model comparison remains intentionally unexecuted, so grounded answer quality
+  and library hallucination rates are not yet measured.
+- Live Docker execution was not reverified because the local daemon was unavailable. Modal
+  remains verified against the installed SDK and contract-level fakes, not an authenticated
+  cloud sandbox.
+- Retrieval events are isolated per run and omit full document chunks from API serialization,
+  but the number of tool calls is controlled by the agent workflow rather than a separate
+  retrieval-call quota.
+- FastAPI, CrewAI, Starlette, and OpenTelemetry emit upstream deprecation warnings during
+  the test suite.
 
 ## Decisions added or changed
 
-No architecture decisions changed. The full review reconfirmed D001 through D004 are
-preserved through Day 4: benchmark and live paths remain separate, hidden expected outputs
-stay host-side, Docker and Modal share the sandbox contract, and self-healing repairs the
-original artifacts with at most three candidate attempts. Infrastructure failures do not
-consume candidate attempts.
+No architecture decisions changed. Day 5 implements D004 by keeping the five-case API RAG
+evaluation separate from the 20-task algorithm benchmark. The hosted architecture continues
+to use a prebuilt ChromaDB index bundled with the backend.
 
 ## Exact next task
 
-Implement Day 5, Add ChromaDB RAG: ingest version-pinned official API documentation; build
-and version the ChromaDB index; expose retrieval only to the agents that need API evidence;
-log retrieved source metadata with each run; and add the separate API-focused evaluation
-suite required by D004. Do not begin the Next.js frontend work from Day 6.
+Implement Day 6, Rebuild the frontend: replace Streamlit with Next.js and TypeScript; add
+run submission, progress, attempts, logs, code, and RAG evidence views; add a dashboard for
+precomputed benchmark results; and handle backend cold starts and interrupted runs clearly.
+Do not begin Day 7 deployment work.

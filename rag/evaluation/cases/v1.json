@@ -1,0 +1,37 @@
+[
+  {
+    "id": "rag_api_01",
+    "prompt": "Using openai Python 2.45.0, create a stateless Responses API request and read its text output.",
+    "expected_source_ids": ["openai-responses-2-45-0"],
+    "required_terms": ["responses.create", "store=False", "output_text"],
+    "forbidden_terms": ["chat.completions.create"]
+  },
+  {
+    "id": "rag_api_02",
+    "prompt": "In FastAPI 0.139.0, where is response_model declared and what does it do to returned data?",
+    "expected_source_ids": ["fastapi-models-0-139-0"],
+    "required_terms": ["response_model", "decorator", "filter"],
+    "forbidden_terms": ["function argument named response_model"]
+  },
+  {
+    "id": "rag_api_03",
+    "prompt": "Configure pydantic-settings 2.10.1 to load a UTF-8 .env file in a typed settings class.",
+    "expected_source_ids": ["pydantic-settings-2-10-1"],
+    "required_terms": ["BaseSettings", "SettingsConfigDict", "env_file"],
+    "forbidden_terms": ["class Config"]
+  },
+  {
+    "id": "rag_api_04",
+    "prompt": "Create a Modal 1.5.1 Sandbox with outbound networking blocked, execute a command with a timeout, and clean it up.",
+    "expected_source_ids": ["modal-sandbox-1-5-1"],
+    "required_terms": ["Sandbox.create", "block_network=True", "sandbox.exec", "terminate"],
+    "forbidden_terms": ["allow_network=False"]
+  },
+  {
+    "id": "rag_api_05",
+    "prompt": "With ChromaDB 1.1.1 and application-owned embeddings, update or insert records and query nearest documents.",
+    "expected_source_ids": ["chromadb-collections-1-1-1"],
+    "required_terms": ["upsert", "query_embeddings", "n_results"],
+    "forbidden_terms": ["search_texts"]
+  }
+]

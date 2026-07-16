@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0.0",
+  "corpus_version": "1.0.0",
+  "collection_name": "digital_forge_docs_v1",
+  "embedding_version": "token-hash-v1-256",
+  "manifest_sha256": "3d6e45c82e920eaf8891e3fa391afb3f1f9a8ee688997f7fb87fcf554408f7f3",
+  "chunk_count": 12
+}

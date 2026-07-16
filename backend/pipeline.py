@@ -5,9 +5,12 @@ import re
 
 from crewai import Agent, Crew
 
+from rag.index import get_retriever
+
 from .agents import build_agents
 from .config import Settings
 from .models import DevelopmentPlan, RunResponse, RunState, RunStatus
+from .retrieval import build_retrieval_tools
 from .sandbox import build_sandbox_runner
 from .self_healing import FailureKind, failure_kind_from_output
 from .tasks import build_tasks
@@ -40,8 +43,13 @@ class DevelopmentCrew:
             cpu_cores=self.settings.sandbox_cpu_cores,
             process_limit=self.settings.sandbox_process_limit,
         )
+        retrieval_tools = build_retrieval_tools(
+            get_retriever(self.settings.rag_index_path),
+            self.state.retrieval_events,
+            result_limit=self.settings.rag_result_limit,
+        )
         self.run_tests_tool = next(tool for tool in tools if tool.name == "run_tests")
-        self.tasks = build_tasks(self.agents, tools)
+        self.tasks = build_tasks(self.agents, tools, retrieval_tools)
 
     def run(self) -> RunResponse:
         self.settings.require_openai_api_key()
@@ -78,6 +86,7 @@ class DevelopmentCrew:
                 run_id=self.state.run_id,
                 status=self.state.status,
                 report=report,
+                retrieval_events=tuple(self.state.retrieval_events),
             )
         except Exception:
             self.state.status = RunStatus.failed
@@ -221,8 +230,21 @@ class DevelopmentCrew:
                 "file_name": plan.file_name,
                 "test_file_name": plan.test_file_name,
                 "final_outcome_summary": outcome,
+                "retrieval_evidence": self._format_retrieval_evidence(),
             }
         )
         report = str(raw_report)
         match = re.search(r"```markdown(.*)```", report, re.DOTALL)
         return match.group(1).strip() if match else report
+
+    def _format_retrieval_evidence(self) -> str:
+        if not self.state.retrieval_events:
+            return "No documentation sources were retrieved."
+        lines = []
+        for event in self.state.retrieval_events:
+            for result in event.results:
+                lines.append(
+                    f"- {result.source_id}: {result.title} ({result.source_url}) "
+                    f"for query: {event.query}"
+                )
+        return "\n".join(lines)
