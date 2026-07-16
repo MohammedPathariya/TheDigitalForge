@@ -2,7 +2,7 @@ import pytest
 
 import backend.pipeline as pipeline_module
 from backend.config import Settings
-from backend.models import DevelopmentPlan, RunState, RunStatus
+from backend.models import DevelopmentPlan, RunStage, RunState, RunStatus
 from backend.pipeline import DevelopmentCrew
 
 
@@ -34,6 +34,7 @@ def test_run_state_tracks_workflow_lifecycle_and_outputs() -> None:
     state = RunState(request="Build a solution")
 
     state.status = RunStatus.running
+    state.stage = RunStage.testing
     state.attempts = 1
     state.technical_brief = "Brief"
     state.plan = plan
@@ -42,6 +43,7 @@ def test_run_state_tracks_workflow_lifecycle_and_outputs() -> None:
     state.status = RunStatus.completed
 
     assert state.status is RunStatus.completed
+    assert state.stage is RunStage.testing
     assert state.technical_brief == "Brief"
     assert state.plan == plan
     assert state.test_results == "ALL TESTS PASSED"
@@ -67,6 +69,23 @@ def test_development_plan_rejects_unsafe_or_mismatched_paths(
             developer_task="Implement the solution.",
             tester_task="Test the solution.",
         )
+
+
+def test_development_plan_normalizes_structured_agent_instructions() -> None:
+    plan = DevelopmentPlan.model_validate(
+        {
+            "file_name": "solution.py",
+            "test_file_name": "test_solution.py",
+            "developer_task": {
+                "function": "solve",
+                "steps": ["return the result"],
+            },
+            "tester_task": {"cases": ["empty input", "typical input"]},
+        }
+    )
+
+    assert '"function": "solve"' in plan.developer_task
+    assert '"cases"' in plan.tester_task
 
 
 def test_self_healing_repairs_only_the_routed_file(
@@ -115,6 +134,10 @@ def test_self_healing_repairs_only_the_routed_file(
     assert developer_tasks == ["Implement the solution.", "Repair the candidate."]
     assert tester_tasks == ["Test the solution."]
     assert crew.state.attempts == 2
+    assert [attempt.status.value for attempt in crew.state.attempt_history] == [
+        "failed",
+        "passed",
+    ]
 
 
 def test_self_healing_routes_test_repairs_without_rewriting_candidate(
@@ -332,3 +355,43 @@ def test_repeated_infrastructure_failures_stop_without_consuming_attempt(
 
     assert "INFRASTRUCTURE RETRIES EXHAUSTED" in result
     assert crew.state.attempts == 0
+
+
+def test_run_reports_infrastructure_exhaustion_separately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crew = DevelopmentCrew("build a solution", Settings(openai_api_key="test-key"))
+    infrastructure_failure = (
+        "TESTS FAILED:\n"
+        "FAILURE CLASS: infrastructure\n"
+        "INFRASTRUCTURE RETRIES EXHAUSTED: candidate attempt was not consumed."
+    )
+
+    class StubCrew:
+        calls = 0
+
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def kickoff(self, *, inputs: dict[str, object]) -> str:
+            StubCrew.calls += 1
+            if StubCrew.calls == 1:
+                return "Brief"
+            return (
+                '{"file_name":"solution.py",'
+                '"test_file_name":"test_solution.py",'
+                '"developer_task":"Implement it.",'
+                '"tester_task":"Test it."}'
+            )
+
+    monkeypatch.setattr(pipeline_module, "Crew", StubCrew)
+    monkeypatch.setattr(crew, "_develop_and_test", lambda _plan: infrastructure_failure)
+    monkeypatch.setattr(crew, "_generate_final_report", lambda *_args: "Report")
+
+    result = crew.run()
+
+    assert result.status is RunStatus.failed
+    assert crew.state.attempts == 0
+    assert crew.state.events[-1].message == (
+        "The run stopped after repeated sandbox infrastructure failures."
+    )
