@@ -45,6 +45,24 @@ accepted decisions. Day 7 deployment work has not started.
   frontend separates consumed candidate attempts from raw test execution records.
 - Removed the long technical brief from the primary Overview screen after live UI review;
   the Overview now prioritizes current activity and the development plan.
+- Refined the Overview panels after browser testing: current activity and development
+  plan now use bounded card scrolling with custom scrollbars, and structured development
+  plan instructions render as labeled sections instead of raw JSON strings. Inline
+  numbered and dashed instruction text now becomes readable bullet lists.
+- Tightened the live-agent contract so planning, implementation, testing, and repair keep
+  exact function names, file names, return schemas, and edge-case behavior aligned. Syntax
+  failures now provide explicit contract-preserving developer guidance.
+- Corrected failed-result pipeline rendering so a successfully generated final report is not
+  labeled as a Janus failure. Athena's latest repair target now identifies Hephaestus for
+  application failures or Argus for invalid generated tests, with the final failure class as
+  fallback. Infrastructure failures blame neither agent and unexpected pipeline exceptions
+  mark the stage where execution stopped.
+- Stabilized the live elapsed counter by decoupling it from the slower run polling cycle and
+  calculating completed seconds from the current clock. Also clarified test-suite repair
+  activity text and required Argus to save syntactically valid Python without Markdown fences.
+- Prevented generated tests from adding unstated case-insensitive behavior or exact exception
+  messages. Test repairs now explicitly remove unsupported assertions rather than preserving
+  stricter interpretations of the user's request.
 - Added a targeted PostCSS 8.5.19 override because Next.js 16.2.10 pins a version covered
   by a moderate-severity advisory. The override passes the frontend build and leaves the
   production dependency audit clean.
@@ -65,6 +83,11 @@ accepted decisions. Day 7 deployment work has not started.
 - `.venv/bin/ruff check backend/pipeline.py tests/test_pipeline.py` passed.
 - `.venv/bin/ruff format --check backend/pipeline.py tests/test_pipeline.py` passed.
 - `.venv/bin/mypy backend tests` passed.
+- Added self-healing coverage for application syntax failures routing to the developer with
+  contract-preserving repair guidance.
+- Added pipeline coverage for the corrected test-suite repair activity message.
+- Added task-contract coverage that prevents Argus from asserting unstated casing behavior or
+  exact exception messages.
 - `npm install` audited 400 packages after the PostCSS override and reported zero known
   vulnerabilities.
 - FastAPI tests cover synchronous compatibility, asynchronous run creation and polling,
@@ -98,6 +121,9 @@ accepted decisions. Day 7 deployment work has not started.
   cloud sandbox.
 - The deterministic RAG index remains intentionally small and version-pinned. The known
   retrieval-quality and library-upgrade constraints from Day 5 still apply.
+- Agent-generated code can still fail after repair despite stronger contracts because live
+  model output is nondeterministic. Such runs remain correctly marked failed and should be
+  retained as quality evidence rather than counted as successful executions.
 - FastAPI, CrewAI, Starlette, and OpenTelemetry continue to emit upstream deprecation
   warnings during the Python test suite.
 

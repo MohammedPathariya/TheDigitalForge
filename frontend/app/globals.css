@@ -737,6 +737,13 @@ button:disabled {
   padding: 24px;
 }
 
+.overview-panel {
+  display: flex;
+  flex-direction: column;
+  height: clamp(360px, 43vh, 500px);
+  min-height: 0;
+}
+
 .wide-card {
   grid-column: 1 / -1;
   min-height: auto;
@@ -749,8 +756,10 @@ button:disabled {
 }
 
 .event-list {
-  max-height: 330px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  padding-right: 8px;
 }
 
 .event-row {
@@ -793,21 +802,53 @@ button:disabled {
   line-height: 1.65;
 }
 
+.custom-scroll {
+  scrollbar-color: rgba(155, 126, 43, 0.38) transparent;
+  scrollbar-width: thin;
+}
+
+.custom-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(155, 126, 43, 0.34);
+  background-clip: content-box;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(155, 126, 43, 0.52);
+  background-clip: content-box;
+}
+
+.plan-scroll {
+  flex: 1;
+  min-height: 0;
+  margin-top: 18px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
 .plan-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  margin-top: 18px;
 }
 
-.plan-grid > div {
+.plan-card {
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fbfaf7;
 }
 
-.plan-grid span {
+.plan-card span {
   display: block;
   margin-bottom: 5px;
   color: var(--text-muted);
@@ -816,17 +857,58 @@ button:disabled {
   text-transform: uppercase;
 }
 
-.plan-grid strong {
+.plan-card strong {
+  display: block;
   font-family: var(--mono);
   font-size: 0.84rem;
+  line-height: 1.35;
 }
 
-.plan-grid p,
+.instruction-fields {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+}
+
+.instruction-fields > div {
+  padding-top: 12px;
+  border-top: 1px solid rgba(223, 217, 202, 0.9);
+}
+
+.instruction-fields dt {
+  margin-bottom: 4px;
+  color: var(--gold-dark);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.instruction-fields dd {
+  margin: 0;
+}
+
+.instruction-fields p,
+.instruction-list p,
 .empty-copy {
-  margin: 13px 0 0;
+  margin: 0;
   color: var(--text-secondary);
-  font-size: 0.88rem;
-  line-height: 1.55;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.instruction-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.instruction-list li::marker {
+  color: var(--gold);
+  font-size: 0.78rem;
 }
 
 .attempt-list,

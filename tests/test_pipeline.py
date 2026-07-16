@@ -185,6 +185,10 @@ def test_self_healing_routes_test_repairs_without_rewriting_candidate(
     assert "Repair only the current test suite" in tester_tasks[1]
     assert "FAILURE CLASS: test" in tester_tasks[1]
     assert crew.state.attempts == 2
+    assert any(
+        event.message == "The test suite is being repaired before the next attempt."
+        for event in crew.state.events
+    )
 
 
 def test_timeout_routing_cannot_rewrite_tests(

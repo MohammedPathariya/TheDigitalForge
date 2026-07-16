@@ -45,8 +45,12 @@ def build_tasks(
             "'file_name' for a PEP 8 Python filename, 'test_file_name' for its pytest "
             "suite, 'developer_task' as one JSON string with precise functions, inputs, "
             "outputs, and logic, and 'tester_task' as one JSON string with the test "
-            "strategy and specific cases. Do not return nested objects or arrays for "
-            "developer_task or tester_task. When the brief "
+            "strategy and specific cases. The developer_task and tester_task must use the "
+            "same exact function names, file names, return keys, and edge-case behavior "
+            "from the brief. Do not rename a requested function or invent a different "
+            "output schema. Do not add case-insensitive behavior or exact exception-message "
+            "requirements unless the brief explicitly requires them. Do not return nested "
+            "objects or arrays for developer_task or tester_task. When the brief "
             "depends on a third-party API, use search_official_documentation before "
             "finalizing API names or parameters."
         ),
@@ -64,8 +68,12 @@ def build_tasks(
             "is present, repair that code and preserve unaffected behavior.\n\nOriginal "
             "Developer Task:\n'''\n{original_developer_task}\n'''\n\nCurrent "
             "Instruction:\n'''\n{developer_task}\n'''\n\nCurrent Code:\n'''\n"
-            "{current_code}\n'''\n\nUse search_official_documentation before writing "
-            "third-party API calls. Use save_file to save the code to {file_name}."
+            "{current_code}\n'''\n\nUse the exact function names, file name, return keys, and behavior "
+            "required by the original developer task. During repair, inspect the current "
+            "code for SyntaxError, indentation errors, missing symbols, and mismatches "
+            "with the tester's expected import or return schema. Make the smallest fix and "
+            "save only the application code to {file_name}. Use "
+            "search_official_documentation before writing third-party API calls."
         ),
         expected_output="The saved Python file path.",
         agent=agents["developer"],
@@ -78,7 +86,16 @@ def build_tasks(
             "present, repair only those tests and preserve unaffected coverage.\n\nOriginal "
             "Testing Plan:\n'''\n{original_tester_task}\n'''\n\nCurrent Testing "
             "Instruction:\n'''\n{tester_task}\n'''\n\nCurrent Tests:\n'''\n"
-            "{current_tests}\n'''\n\nUse save_file to save it to {test_file_name}."
+            "{current_tests}\n'''\n\nUse the exact application file name, function names, return keys, and "
+            "edge-case behavior from the original testing plan. Import the requested "
+            "symbol from the requested application module; never substitute a similar "
+            "function name or invent a different output schema. Treat strings and identifiers "
+            "as case-sensitive unless the original plan explicitly requires case-insensitive "
+            "behavior. Do not assert an exact exception message unless its text is explicitly "
+            "required. During repair, remove or correct assertions that encode unstated "
+            "requirements instead of preserving them. Before saving, verify that the test "
+            "file is complete, contains no Markdown fences, and is syntactically valid Python. "
+            "Use save_file to save it to {test_file_name}."
         ),
         expected_output="The saved pytest file path.",
         agent=agents["tester"],
@@ -104,6 +121,11 @@ def build_tasks(
             "Current Application Code:\n'''\n{current_code}\n'''\n\nCurrent Test Code:\n'''\n"
             "{current_tests}\n'''\n\n"
             "Sanitized Test Failure Evidence:\n'''\n{test_failure_log}\n'''\n\nUse "
+            "the traceback to distinguish application syntax or missing-symbol errors from "
+            "a broken test import. If the application does not parse, repair the application "
+            "first. If the application matches the original contract but the test imports "
+            "a different symbol, asserts a different schema, assumes unstated case-insensitive "
+            "behavior, or requires an unspecified exception message, repair the tests. Use "
             "search_official_documentation when the root cause depends on third-party API "
             "behavior."
         ),
