@@ -50,8 +50,10 @@ Thumbs.db
 # Logs and reports
 logs/
 benchmark-results/
+rag-evaluation-results/
 *.log
 *.csv
 
 # Miscellaneous
 *.sqlite3
+!rag/index/v1/chroma.sqlite3

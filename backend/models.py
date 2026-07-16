@@ -5,6 +5,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from rag.models import RetrievalEvent
+
 from .workspace import RunWorkspace
 
 
@@ -25,6 +27,7 @@ class RunResponse(BaseModel):
     run_id: UUID
     status: RunStatus
     report: str
+    retrieval_events: tuple[RetrievalEvent, ...] = ()
 
 
 class DevelopmentPlan(BaseModel):
@@ -53,4 +56,5 @@ class RunState(BaseModel):
     technical_brief: str | None = None
     plan: DevelopmentPlan | None = None
     test_results: str | None = None
+    retrieval_events: list[RetrievalEvent] = Field(default_factory=list)
     report: str | None = None

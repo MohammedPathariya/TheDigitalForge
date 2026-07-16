@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0.0",
+  "corpus_version": "1.0.0",
+  "sources": [
+    {
+      "id": "openai-responses-2-45-0",
+      "library": "openai",
+      "library_version": "2.45.0",
+      "document_version": "OpenAPI 2.3.0",
+      "title": "Responses API create reference",
+      "source_url": "https://developers.openai.com/api/reference/resources/responses/methods/create",
+      "content_path": "content/openai-responses.md",
+      "sha256": "277e458384607969b25a8088a2e9bc1c9ebcff63a527719f08d4203cc17afb1b"
+    },
+    {
+      "id": "fastapi-models-0-139-0",
+      "library": "fastapi",
+      "library_version": "0.139.0",
+      "document_version": "0.139.0",
+      "title": "Request bodies, response models, and errors",
+      "source_url": "https://fastapi.tiangolo.com/tutorial/response-model/",
+      "content_path": "content/fastapi-models.md",
+      "sha256": "079a55277f520ec87d455d38bddc3d65c1f960fcaedce27549ac5b049a60131d"
+    },
+    {
+      "id": "pydantic-settings-2-10-1",
+      "library": "pydantic-settings",
+      "library_version": "2.10.1",
+      "document_version": "2.10",
+      "title": "Settings management",
+      "source_url": "https://docs.pydantic.dev/2.10/concepts/pydantic_settings/",
+      "content_path": "content/pydantic-settings.md",
+      "sha256": "58798d3508eeb9a23a7ef2fb5b95a28d4777306bd2104ebde88d50e99e45d2e8"
+    },
+    {
+      "id": "modal-sandbox-1-5-1",
+      "library": "modal",
+      "library_version": "1.5.1",
+      "document_version": "1.5.1",
+      "title": "Sandbox create and execution",
+      "source_url": "https://modal.com/docs/sdk/py/latest/modal.Sandbox",
+      "content_path": "content/modal-sandbox.md",
+      "sha256": "d7b1b3511d397d9ba79faa84e548992e7179f607d402395ada4b80586a7d671f"
+    },
+    {
+      "id": "chromadb-collections-1-1-1",
+      "library": "chromadb",
+      "library_version": "1.1.1",
+      "document_version": "1.1.1",
+      "title": "Collection upsert and query",
+      "source_url": "https://docs.trychroma.com/docs/querying-collections/query-and-get",
+      "content_path": "content/chromadb-collections.md",
+      "sha256": "225f9a45305bdf75af0fd439334b62a2a3f7f7e889e7756f216e71aec34aec37"
+    }
+  ]
+}
