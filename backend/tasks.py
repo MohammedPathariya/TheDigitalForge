@@ -43,8 +43,10 @@ def build_tasks(
             "requirement and success criterion.\n\nTechnical Brief:\n'''\n"
             "{technical_brief}\n'''\n\nReturn one valid JSON object with four keys: "
             "'file_name' for a PEP 8 Python filename, 'test_file_name' for its pytest "
-            "suite, 'developer_task' with precise functions, inputs, outputs, and logic, "
-            "and 'tester_task' with the test strategy and specific cases. When the brief "
+            "suite, 'developer_task' as one JSON string with precise functions, inputs, "
+            "outputs, and logic, and 'tester_task' as one JSON string with the test "
+            "strategy and specific cases. Do not return nested objects or arrays for "
+            "developer_task or tester_task. When the brief "
             "depends on a third-party API, use search_official_documentation before "
             "finalizing API names or parameters."
         ),

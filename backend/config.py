@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     sandbox_process_limit: int = Field(default=64, ge=4, le=128)
     rag_index_path: Path = PROJECT_ROOT / "rag" / "index" / "v1"
     rag_result_limit: int = Field(default=3, ge=1, le=5)
+    benchmark_results_path: Path = PROJECT_ROOT / "benchmark-results"
 
     def require_openai_api_key(self) -> str:
         if not self.openai_api_key:

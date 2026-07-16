@@ -2,103 +2,116 @@
 
 ## Current phase
 
-Day 5, Add ChromaDB RAG, is complete on `mjp/revamp-digital-forge`.
-Days 1 through 5 remain consistent with the current week plan, architecture, and
-accepted decisions.
+Day 6, Rebuild the frontend, is complete on `mjp/revamp-digital-forge`.
+Days 1 through 6 remain consistent with the current week plan, architecture, and
+accepted decisions. Day 7 deployment work has not started.
 
 ## Completed work
 
-- Added a versioned `1.0.0` documentation corpus with pinned official references for
-  OpenAI 2.45.0, FastAPI 0.139.0, pydantic-settings 2.10.1, Modal 1.5.1, and ChromaDB
-  1.1.1. The source manifest records library versions, document versions, URLs, local
-  content paths, and SHA-256 content digests.
-- Added deterministic Markdown section chunking and application-owned token-hash
-  embeddings. The versioned ChromaDB index contains 12 chunks and is bundled at
-  `rag/index/v1` for local and hosted backend use without an embedding-model download.
-- Added index integrity checks for source digests, manifest hash, corpus version,
-  embedding version, and stored chunk count. A stale, incomplete, or tampered corpus is
-  rejected before retrieval.
-- Added a bounded retrieval tool that returns up to five cited official-documentation
-  excerpts. Only Athena planning and repair tasks and Hephaestus implementation tasks
-  receive the tool. Janus and Argus do not receive it.
-- Added per-run retrieval events to workflow state and API responses. Logged evidence
-  includes the query and retrieved source metadata while excluding full chunk content
-  from response serialization. Final reports receive the cited source IDs, titles, URLs,
-  and retrieval queries.
-- Added a separate five-case API evaluation catalog and runner for RAG and no-RAG model
-  configurations. Reports record the exact model, corpus version, prompt version,
-  configuration, response IDs, token usage, retrieved sources, and required or forbidden
-  API terms.
-- Added focused tests for corpus integrity, index construction, expected-source retrieval,
-  tool source logging, per-run isolation, agent access boundaries, evaluation artifacts,
-  and separate RAG versus no-RAG scoring.
-- Declared the existing ChromaDB pin as a direct runtime dependency and extended CI type
-  checking to include the `rag` package.
-- End-of-phase review correction: added a narrow `.gitignore` exception for the bundled
-  `rag/index/v1/chroma.sqlite3` database. The global `*.sqlite3` rule previously excluded
-  the collection database, so a clean checkout or deployment would receive incomplete
-  index artifacts even though retrieval worked in the original local checkout.
-- End-of-phase review verification: added explicit coverage that the bundled Chroma
-  database is present and nonempty, and confirmed FastAPI serializes retrieved source
-  metadata without exposing full document chunks.
+- Replaced the Streamlit application with a Next.js 16.2.10 App Router frontend using
+  React 19 and strict TypeScript. The frontend lives under `frontend/` with pinned npm
+  dependencies, ESLint, a separate type-check command, and a production build command.
+- Implemented the agreed light visual system: warm off-white canvas, flat white cards,
+  restrained gold brand and running states, green success indicators, amber interrupted
+  states, red confirmed failures, purple retrieval evidence, and dark code and log panels.
+- Added the chip/circuit brand mark and a simplified small-size favicon. Added responsive
+  desktop and mobile layouts, visible keyboard focus, reduced-motion handling, semantic
+  landmarks, accessible labels, and status text that does not rely on color alone.
+- Added request submission with validation, character count, example prompts, backend
+  health and cold-start states, local active-run recovery, polling, elapsed time, and
+  cooperative cancellation messaging.
+- Added structured run views for the live agent pipeline, sanitized event history,
+  technical brief, development plan, candidate attempts, failure classes, repair targets,
+  generated application and test artifacts, test output, RAG source metadata, and the final
+  report. Interrupted polling is shown as recoverable and does not mark a run as failed.
+- Added a benchmark dashboard that reads immutable `benchmark-results/*/report.json`
+  artifacts, presents model and evaluator metadata, aggregate metrics, easy and medium
+  pass rates, filters, task-level outcomes, duration, and errors. When no measured report
+  exists, it shows an explicit unmeasured state instead of fabricated results.
+- Added process-local asynchronous run coordination around the existing pipeline with
+  `POST /runs`, `GET /runs/{run_id}`, `POST /runs/{run_id}/cancel`, and `GET /benchmarks`.
+  Preserved the synchronous `POST /run` endpoint for compatibility.
+- Added typed run stages, bounded event records, attempt snapshots, generated artifacts,
+  retrieval metadata, sanitized terminal errors, and cooperative cancellation checkpoints
+  between expensive workflow stages.
+- Removed the Streamlit entry point and its direct runtime dependencies. Regenerated the
+  Python lockfile while constraining unrelated transitive versions to the prior lock.
+- Live browser integration exposed that Athena can return structured JSON objects for
+  `developer_task` and `tester_task` even though the workflow model stores strings. Added
+  an explicit prompt constraint and deterministic object/list normalization so that valid
+  structured plans no longer terminate a run.
+- Clarified failed-run accounting after live browser testing: repeated sandbox
+  infrastructure failures now end with an infrastructure-specific status message, and the
+  frontend separates consumed candidate attempts from raw test execution records.
+- Removed the long technical brief from the primary Overview screen after live UI review;
+  the Overview now prioritizes current activity and the development plan.
+- Added a targeted PostCSS 8.5.19 override because Next.js 16.2.10 pins a version covered
+  by a moderate-severity advisory. The override passes the frontend build and leaves the
+  production dependency audit clean.
 
 ## Verification performed
 
-- `ruff check .` passed.
-- `ruff format --check .` passed with 40 files checked.
-- `mypy backend benchmark rag tests` passed with 40 source files checked.
-- `python -m pytest -q` passed with 58 tests; the two live Docker integration tests were
+- `python -m pytest -q` passed with 63 tests; the two live Docker integration tests were
   skipped because the local Docker daemon was unavailable.
-- The focused Day 5 suite passed with 11 tests.
-- `python -m pip check` reported no broken requirements.
-- `python -m rag.index` rebuilt the bundled version `1.0.0` index with 12 chunks.
-- All five API evaluation prompts retrieved their expected source within the top three
-  results.
-- SQLite `PRAGMA integrity_check` returned `ok`; all 12 stored chunk IDs and documents
-  matched the versioned, digest-verified corpus.
-- Installed OpenAI, FastAPI, pydantic-settings, Modal, and ChromaDB versions matched the
-  source manifest versions.
-- `git check-ignore -q rag/index/v1/chroma.sqlite3` returned exit code 1, and
-  `git ls-files --others --exclude-standard` listed the database as includable.
-- FastAPI OpenAPI generation and response serialization confirmed the retrieval schema
-  exposes source metadata but excludes full chunk content.
-- `python -m rag.index --help` and `python -m rag.evaluation --help` passed.
-- `uv pip compile requirements-dev.txt --python .venv/bin/python --output-file
-  requirements.lock` completed. No package version changed; the lock now records ChromaDB
-  as both direct and CrewAI-transitive.
-- `git diff --check` passed.
-- Focused secret scanning found no private keys or live OpenAI credentials in the Day 5
-  diff; the only API-key match was the documented placeholder in `.env.example`.
+- `ruff check .` passed.
+- `ruff format --check .` passed with 42 Python files checked.
+- `mypy backend benchmark rag tests` passed with 42 source files checked.
+- `npm run lint` passed for the Next.js frontend.
+- `npm run typecheck` passed with strict TypeScript checking.
+- `npm run build` produced static frontend routes for `/`, `/benchmark`, and `/icon.svg`.
+- `.venv/bin/pytest tests/test_pipeline.py::test_run_reports_infrastructure_exhaustion_separately
+  tests/test_pipeline.py::test_repeated_infrastructure_failures_stop_without_consuming_attempt`
+  passed.
+- `.venv/bin/ruff check backend/pipeline.py tests/test_pipeline.py` passed.
+- `.venv/bin/ruff format --check backend/pipeline.py tests/test_pipeline.py` passed.
+- `.venv/bin/mypy backend tests` passed.
+- `npm install` audited 400 packages after the PostCSS override and reported zero known
+  vulnerabilities.
+- FastAPI tests cover synchronous compatibility, asynchronous run creation and polling,
+  not-found responses, cooperative cancellation, request validation, retrieval metadata
+  serialization, and an empty benchmark-artifact directory.
+- Browser verification confirmed the landing page, backend health indicator, example and
+  clear controls, benchmark empty state, failed-run state, corrected failed-stage pipeline
+  rendering, desktop layout, mobile layout, and absence of browser console errors.
+- One live-model browser integration attempt completed Janus briefing and Athena planning,
+  then exposed the structured-plan validation issue described above. The run was stopped,
+  the issue was corrected and covered by a deterministic test, and another paid run was
+  intentionally not started.
+- `git diff --check` passed after implementation.
 
 ## Known risks and deferred work
 
-- The corpus is deliberately small and pinned. Library upgrades require a reviewed source
-  snapshot, new digests, a corpus version bump, an index rebuild, and an evaluation rerun.
-- Deterministic token-hash embeddings keep the bundled index reproducible and avoid model
-  downloads, but provide weaker semantic matching than a dedicated embedding model. The
-  five current API cases pass expected-source retrieval; broader retrieval quality has not
-  been measured.
-- The RAG and no-RAG evaluation harness is verified with deterministic test generators.
-  A paid live model comparison remains intentionally unexecuted, so grounded answer quality
-  and library hallucination rates are not yet measured.
+- Run snapshots are process-local and disappear when the backend restarts. Durable or
+  shared run storage is deferred until deployment requirements are finalized.
+- Cancellation is cooperative. A request stops at the next workflow boundary but cannot
+  interrupt a CrewAI or model request already in progress.
+- The public one-run concurrency limit, rate limits, request timeouts, and model spending
+  controls remain Day 7 work. The local Day 6 run manager does not claim those protections.
+- No real algorithm benchmark report is currently present under `benchmark-results/`, so
+  the verified dashboard correctly shows an unmeasured state. Full benchmark configurations
+  remain after-week measurement work.
+- A paid end-to-end run was not repeated after the structured-plan correction. Local tests
+  cover normalization and workflow boundaries, but final live-model output quality remains
+  to be reverified deliberately.
 - Live Docker execution was not reverified because the local daemon was unavailable. Modal
   remains verified against the installed SDK and contract-level fakes, not an authenticated
   cloud sandbox.
-- Retrieval events are isolated per run and omit full document chunks from API serialization,
-  but the number of tool calls is controlled by the agent workflow rather than a separate
-  retrieval-call quota.
-- FastAPI, CrewAI, Starlette, and OpenTelemetry emit upstream deprecation warnings during
-  the test suite.
+- The deterministic RAG index remains intentionally small and version-pinned. The known
+  retrieval-quality and library-upgrade constraints from Day 5 still apply.
+- FastAPI, CrewAI, Starlette, and OpenTelemetry continue to emit upstream deprecation
+  warnings during the Python test suite.
 
 ## Decisions added or changed
 
-No architecture decisions changed. Day 5 implements D004 by keeping the five-case API RAG
-evaluation separate from the 20-task algorithm benchmark. The hosted architecture continues
-to use a prebuilt ChromaDB index bundled with the backend.
+No architecture decision changed. Day 6 implements D005 by replacing Streamlit with
+Next.js and TypeScript and adding typed background run state, polling, and cancellation.
+The benchmark dashboard continues to follow D001 and D007 by displaying only precomputed,
+measured artifacts and never triggering or inventing benchmark results.
 
 ## Exact next task
 
-Implement Day 6, Rebuild the frontend: replace Streamlit with Next.js and TypeScript; add
-run submission, progress, attempts, logs, code, and RAG evidence views; add a dashboard for
-precomputed benchmark results; and handle backend cold starts and interrupted runs clearly.
-Do not begin Day 7 deployment work.
+Implement Day 7, Deploy and verify: deploy the frontend to Vercel, deploy FastAPI and
+CrewAI to Render Free, connect hosted execution to Modal, add rate limits, request
+timeouts, one-run concurrency, and model spending controls, then run deployment smoke
+tests and finish project documentation. Do not run full benchmark configurations or update
+resume and LinkedIn claims until the separate measured-results work begins.

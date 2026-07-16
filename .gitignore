@@ -16,12 +16,18 @@ dist/
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Node and Next.js
+node_modules/
+.next/
+*.tsbuildinfo
+
 # Virtual environments
 venv/
 .venv/
 env/
 .env                # your OPENAI_API_KEY and other secrets
 .env.*              # any other env files
+!frontend/.env.example
 
 # Conda environments (if accidentally added)
 *.conda
@@ -32,10 +38,6 @@ env/
 .cache/
 .mypy_cache/
 .ruff_cache/
-
-# Streamlit
-.streamlit/secrets.toml
-.streamlit/credentials.toml
 
 # IDEs and editors
 .vscode/

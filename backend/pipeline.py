@@ -2,6 +2,8 @@
 
 import json
 import re
+from collections.abc import Callable
+from uuid import UUID
 
 from crewai import Agent, Crew
 
@@ -9,12 +11,23 @@ from rag.index import get_retriever
 
 from .agents import build_agents
 from .config import Settings
-from .models import DevelopmentPlan, RunResponse, RunState, RunStatus
+from .models import (
+    AttemptStatus,
+    DevelopmentPlan,
+    RunAttempt,
+    RunEvent,
+    RunResponse,
+    RunStage,
+    RunState,
+    RunStatus,
+)
 from .retrieval import build_retrieval_tools
 from .sandbox import build_sandbox_runner
 from .self_healing import FailureKind, failure_kind_from_output
 from .tasks import build_tasks
 from .tools import build_file_system_tools
+
+INFRASTRUCTURE_EXHAUSTED_MARKER = "INFRASTRUCTURE RETRIES EXHAUSTED"
 
 
 def _parse_json(raw_output: object) -> dict[str, object]:
@@ -25,10 +38,28 @@ def _parse_json(raw_output: object) -> dict[str, object]:
     return parsed
 
 
+class RunCancelled(Exception):
+    """Raised at a workflow boundary after cancellation is requested."""
+
+
 class DevelopmentCrew:
-    def __init__(self, user_request: str, settings: Settings | None = None):
+    def __init__(
+        self,
+        user_request: str,
+        settings: Settings | None = None,
+        *,
+        run_id: UUID | None = None,
+        on_update: Callable[[RunState], None] | None = None,
+        is_cancel_requested: Callable[[], bool] | None = None,
+    ):
         self.settings = settings or Settings()
-        self.state = RunState(request=user_request)
+        self.state = (
+            RunState(run_id=run_id, request=user_request)
+            if run_id is not None
+            else RunState(request=user_request)
+        )
+        self.on_update = on_update
+        self.is_cancel_requested = is_cancel_requested or (lambda: False)
         self.agents: dict[str, Agent] = build_agents()
         sandbox_runner = build_sandbox_runner(
             self.settings.sandbox_backend,
@@ -55,6 +86,10 @@ class DevelopmentCrew:
         self.settings.require_openai_api_key()
         self.state.status = RunStatus.running
         try:
+            self._transition(
+                RunStage.briefing, "Janus is preparing the technical brief."
+            )
+            self._checkpoint()
             technical_brief = str(
                 Crew(
                     agents=[self.agents["liaison"]],
@@ -63,6 +98,10 @@ class DevelopmentCrew:
                 ).kickoff(inputs={"user_request": self.state.request})
             )
             self.state.technical_brief = technical_brief
+            self._transition(
+                RunStage.planning, "Athena is creating the development plan."
+            )
+            self._checkpoint()
             plan = DevelopmentPlan.model_validate(
                 _parse_json(
                     Crew(
@@ -75,6 +114,8 @@ class DevelopmentCrew:
             self.state.plan = plan
             test_results = self._develop_and_test(plan)
             self.state.test_results = test_results
+            self._transition(RunStage.reporting, "Janus is compiling the final report.")
+            self._checkpoint()
             report = self._generate_final_report(technical_brief, test_results, plan)
             self.state.report = report
             self.state.status = (
@@ -82,14 +123,37 @@ class DevelopmentCrew:
                 if "ALL TESTS PASSED" in test_results
                 else RunStatus.failed
             )
+            if self.state.status is RunStatus.completed:
+                message = "The run completed and all tests passed."
+            elif INFRASTRUCTURE_EXHAUSTED_MARKER in test_results:
+                message = (
+                    "The run stopped after repeated sandbox infrastructure failures."
+                )
+            else:
+                message = "The run completed with failing tests."
+            self._transition(RunStage.complete, message)
             return RunResponse(
                 run_id=self.state.run_id,
                 status=self.state.status,
                 report=report,
                 retrieval_events=tuple(self.state.retrieval_events),
             )
+        except RunCancelled:
+            self.state.status = RunStatus.cancelled
+            self.state.report = "Run cancelled at the next safe workflow boundary."
+            self._transition(RunStage.cancelled, "The run was cancelled.")
+            return RunResponse(
+                run_id=self.state.run_id,
+                status=self.state.status,
+                report=self.state.report,
+                retrieval_events=tuple(self.state.retrieval_events),
+            )
         except Exception:
             self.state.status = RunStatus.failed
+            self._transition(
+                RunStage.complete,
+                "The pipeline stopped because an unexpected error occurred.",
+            )
             raise
 
     def _develop_and_test(self, plan: DevelopmentPlan) -> str:
@@ -98,17 +162,30 @@ class DevelopmentCrew:
         test_results = ""
         candidate_attempts = 0
         infrastructure_retries = 0
+        self._transition(RunStage.developing, "Hephaestus is writing application code.")
+        self._checkpoint()
         self._run_developer(plan, developer_task)
+        self._transition(RunStage.developing, "Argus is writing the test suite.")
+        self._checkpoint()
         self._run_test_author(plan, tester_task)
 
         while candidate_attempts < self.settings.max_attempts:
+            self._transition(RunStage.testing, "Argus is running the generated tests.")
+            self._checkpoint()
             test_results = self._run_tests(plan)
             failure_kind = failure_kind_from_output(test_results)
             if failure_kind is FailureKind.infrastructure:
                 infrastructure_retries += 1
+                self._record_attempt(
+                    plan,
+                    test_results,
+                    failure_kind=failure_kind,
+                    candidate_attempt=None,
+                    repair_target="system",
+                )
                 if infrastructure_retries >= self.settings.max_attempts:
                     return (
-                        f"{test_results}\nINFRASTRUCTURE RETRIES EXHAUSTED: "
+                        f"{test_results}\n{INFRASTRUCTURE_EXHAUSTED_MARKER}: "
                         "candidate attempt was not consumed."
                     )
                 continue
@@ -117,8 +194,22 @@ class DevelopmentCrew:
             candidate_attempts += 1
             self.state.attempts = candidate_attempts
             if "ALL TESTS PASSED" in test_results:
+                self._record_attempt(
+                    plan,
+                    test_results,
+                    failure_kind=None,
+                    candidate_attempt=candidate_attempts,
+                    repair_target=None,
+                )
                 return test_results
             if candidate_attempts >= self.settings.max_attempts:
+                self._record_attempt(
+                    plan,
+                    test_results,
+                    failure_kind=failure_kind,
+                    candidate_attempt=candidate_attempts,
+                    repair_target=None,
+                )
                 return test_results
 
             if failure_kind is FailureKind.test:
@@ -137,6 +228,21 @@ class DevelopmentCrew:
                 repair = self._analyze_failure(plan, test_results)
                 file_to_fix = str(repair["file_to_fix"])
                 next_task = str(repair["next_task"])
+            repair_target = (
+                "tests" if file_to_fix == plan.test_file_name else "application"
+            )
+            self._record_attempt(
+                plan,
+                test_results,
+                failure_kind=failure_kind,
+                candidate_attempt=candidate_attempts,
+                repair_target=repair_target,
+            )
+            self._transition(
+                RunStage.repairing,
+                f"The {repair_target} is being repaired before the next attempt.",
+            )
+            self._checkpoint()
             if file_to_fix == plan.test_file_name:
                 tester_task = next_task
                 self._run_test_author(plan, tester_task)
@@ -146,6 +252,47 @@ class DevelopmentCrew:
             else:
                 raise ValueError("Repair target must be the application or test file.")
         return test_results
+
+    def _record_attempt(
+        self,
+        plan: DevelopmentPlan,
+        test_results: str,
+        *,
+        failure_kind: FailureKind | None,
+        candidate_attempt: int | None,
+        repair_target: str | None,
+    ) -> None:
+        status = AttemptStatus.passed
+        if failure_kind is FailureKind.infrastructure:
+            status = AttemptStatus.infrastructure
+        elif "ALL TESTS PASSED" not in test_results:
+            status = AttemptStatus.failed
+        self.state.attempt_history.append(
+            RunAttempt(
+                sequence=len(self.state.attempt_history) + 1,
+                candidate_attempt=candidate_attempt,
+                status=status,
+                failure_kind=failure_kind.value if failure_kind else None,
+                repair_target=repair_target,
+                test_results=test_results,
+                application_code=self.state.workspace.read(plan.file_name) or "",
+                test_code=self.state.workspace.read(plan.test_file_name) or "",
+            )
+        )
+        self._notify()
+
+    def _transition(self, stage: RunStage, message: str) -> None:
+        self.state.stage = stage
+        self.state.events.append(RunEvent(stage=stage, message=message))
+        self._notify()
+
+    def _notify(self) -> None:
+        if self.on_update is not None:
+            self.on_update(self.state)
+
+    def _checkpoint(self) -> None:
+        if self.is_cancel_requested():
+            raise RunCancelled
 
     def _run_developer(self, plan: DevelopmentPlan, developer_task: str) -> None:
         current_code = self.state.workspace.read(plan.file_name)
@@ -215,6 +362,8 @@ class DevelopmentCrew:
         outcome = (
             "All tests passed successfully."
             if "ALL TESTS PASSED" in tests_output
+            else "Process stopped after repeated sandbox infrastructure failures."
+            if INFRASTRUCTURE_EXHAUSTED_MARKER in tests_output
             else "Process completed with failing tests."
         )
         raw_report = Crew(
