@@ -181,8 +181,24 @@ class ChromaRetriever:
         documents = cast(list[list[str]], raw["documents"])[0]
         metadatas = cast(list[list[dict[str, Any]]], raw["metadatas"])[0]
         distances = cast(list[list[float]], raw["distances"])[0]
+        candidates = tuple(zip(ids, documents, metadatas, distances, strict=True))
+        query_tokens = set(_TOKEN.findall(normalized.lower()))
+        mentioned_libraries = {
+            str(metadata["library"])
+            for _, _, metadata, _ in candidates
+            if _library_is_mentioned(query_tokens, str(metadata["library"]))
+        }
+        relevant = tuple(
+            item
+            for item in candidates
+            if (
+                str(item[2]["library"]) in mentioned_libraries
+                if mentioned_libraries
+                else _lexical_score(normalized, f"{item[2]} {item[1]}") > 0
+            )
+        )
         ranked = sorted(
-            zip(ids, documents, metadatas, distances, strict=True),
+            relevant,
             key=lambda item: (
                 -_lexical_score(normalized, f"{item[2]} {item[1]}"),
                 item[3],
@@ -228,6 +244,11 @@ def _lexical_score(query: str, value: str) -> int:
     query_tokens = set(_TOKEN.findall(query.lower()))
     value_tokens = set(_TOKEN.findall(value.lower()))
     return len(query_tokens & value_tokens)
+
+
+def _library_is_mentioned(query_tokens: set[str], library: str) -> bool:
+    library_tokens = set(_TOKEN.findall(library.lower().replace("-", " ")))
+    return bool(library_tokens) and library_tokens <= query_tokens
 
 
 def _retrieved_source(

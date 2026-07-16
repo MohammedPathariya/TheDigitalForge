@@ -26,6 +26,19 @@ def test_bundled_index_retrieves_each_expected_api_source() -> None:
         assert expected_source_id in source_ids
 
 
+def test_retriever_filters_to_explicitly_named_library() -> None:
+    results = ChromaRetriever().retrieve(
+        "FastAPI POST endpoint input validation Pydantic model example", limit=3
+    )
+
+    assert results
+    assert {result.library for result in results} == {"fastapi"}
+
+
+def test_retriever_does_not_fill_results_without_relevance() -> None:
+    assert ChromaRetriever().retrieve("zzzxxyy unrelated", limit=3) == ()
+
+
 def test_bundled_index_contains_chroma_database() -> None:
     database_path = Path("rag/index/v1/chroma.sqlite3")
 

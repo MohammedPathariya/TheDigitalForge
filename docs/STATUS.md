@@ -63,14 +63,36 @@ accepted decisions. Day 7 deployment work has not started.
 - Prevented generated tests from adding unstated case-insensitive behavior or exact exception
   messages. Test repairs now explicitly remove unsupported assertions rather than preserving
   stricter interpretations of the user's request.
+- Added one pinned offline sandbox capability set shared by Docker, Modal, and agent prompts.
+  It covers the bundled documentation libraries plus pytest and HTTP testing support without
+  enabling network access or arbitrary per-run installation.
+- Generalized missing-module handling: unavailable declared dependencies are non-retryable
+  system configuration failures that consume no candidate attempt, while unrequested imports
+  are routed to the application or test author that introduced them.
+- Added library-aware retrieval filtering. Explicit library queries now exclude other
+  libraries, and queries with no lexical relevance return no evidence instead of padded noise.
+- Tightened ambiguous-contract handling so planning and tests do not invent normalization,
+  response bodies, validation behavior, or other semantics absent from the request.
+- Added Pydantic's pinned email-validation runtime to the shared offline sandbox capability
+  set. `EmailStr` models now execute in Docker, and a stale image is classified as a
+  non-retryable system configuration failure instead of consuming three candidate attempts.
+- Added explicit active-agent state to run snapshots. The frontend now moves to Argus while
+  the test suite is being authored, keeps unresolved application or test failures visible
+  while Janus writes the report, and labels terminal failed runs as `Needs manual review`
+  instead of the misleading `Complete`. Activity-message and stage fallbacks preserve the
+  live highlight when viewing a snapshot from an older backend process.
+- Required development plans, implementations, and generated tests to share the same public
+  class names as well as function names, reducing model/test import drift on nested Pydantic
+  tasks.
 - Added a targeted PostCSS 8.5.19 override because Next.js 16.2.10 pins a version covered
   by a moderate-severity advisory. The override passes the frontend build and leaves the
   production dependency audit clean.
 
 ## Verification performed
 
-- `python -m pytest -q` passed with 63 tests; the two live Docker integration tests were
-  skipped because the local Docker daemon was unavailable.
+- `.venv/bin/pytest -q` passed with 80 tests, including five live Docker integration paths
+  for basic isolation, declared-package imports, Pydantic `EmailStr`, the hidden benchmark
+  evaluator, and FastAPI `TestClient` execution.
 - `ruff check .` passed.
 - `ruff format --check .` passed with 42 Python files checked.
 - `mypy backend benchmark rag tests` passed with 42 source files checked.
@@ -88,6 +110,12 @@ accepted decisions. Day 7 deployment work has not started.
 - Added pipeline coverage for the corrected test-suite repair activity message.
 - Added task-contract coverage that prevents Argus from asserting unstated casing behavior or
   exact exception messages.
+- Added mixed regression coverage for shared Docker and Modal capabilities, supported and
+  unrequested missing modules, non-retryable infrastructure failures, explicit-library RAG
+  filtering, and zero-relevance retrieval.
+- Rebuilt `digital-forge-sandbox:py311` from the shared pinned requirements and verified the
+  FastAPI application category that previously failed because the stale image contained only
+  pytest.
 - `npm install` audited 400 packages after the PostCSS override and reported zero known
   vulnerabilities.
 - FastAPI tests cover synchronous compatibility, asynchronous run creation and polling,
@@ -96,6 +124,9 @@ accepted decisions. Day 7 deployment work has not started.
 - Browser verification confirmed the landing page, backend health indicator, example and
   clear controls, benchmark empty state, failed-run state, corrected failed-stage pipeline
   rendering, desktop layout, mobile layout, and absence of browser console errors.
+- Browser smoke verification after the active-agent UI change confirmed the frontend still
+  renders the landing workflow without layout or runtime errors. A fresh live failed run was
+  not started solely to reproduce the terminal review state.
 - One live-model browser integration attempt completed Janus briefing and Athena planning,
   then exposed the structured-plan validation issue described above. The run was stopped,
   the issue was corrected and covered by a deterministic test, and another paid run was
@@ -116,9 +147,12 @@ accepted decisions. Day 7 deployment work has not started.
 - A paid end-to-end run was not repeated after the structured-plan correction. Local tests
   cover normalization and workflow boundaries, but final live-model output quality remains
   to be reverified deliberately.
-- Live Docker execution was not reverified because the local daemon was unavailable. Modal
-  remains verified against the installed SDK and contract-level fakes, not an authenticated
-  cloud sandbox.
+- Modal capability construction remains verified against the installed SDK signature and
+  contract-level fakes, not an authenticated cloud sandbox build. Hosted verification remains
+  part of Day 7 deployment work.
+- Existing local Docker images must be rebuilt after sandbox capability changes; otherwise
+  the pipeline now reports the stale image as a non-retryable system failure without consuming
+  candidate attempts.
 - The deterministic RAG index remains intentionally small and version-pinned. The known
   retrieval-quality and library-upgrade constraints from Day 5 still apply.
 - Agent-generated code can still fail after repair despite stronger contracts because live
@@ -129,10 +163,10 @@ accepted decisions. Day 7 deployment work has not started.
 
 ## Decisions added or changed
 
-No architecture decision changed. Day 6 implements D005 by replacing Streamlit with
-Next.js and TypeScript and adding typed background run state, polling, and cancellation.
-The benchmark dashboard continues to follow D001 and D007 by displaying only precomputed,
-measured artifacts and never triggering or inventing benchmark results.
+D008 now defines the shared offline sandbox capability contract and failure ownership for
+missing modules. Day 6 continues to implement D005 through Next.js, typed background run
+state, polling, and cancellation. The benchmark dashboard continues to follow D001 and D007
+by displaying only precomputed, measured artifacts and never triggering or inventing results.
 
 ## Exact next task
 

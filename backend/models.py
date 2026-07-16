@@ -32,6 +32,13 @@ class RunStage(str, Enum):
     cancelled = "cancelled"
 
 
+class RunAgent(str, Enum):
+    janus = "janus"
+    athena = "athena"
+    hephaestus = "hephaestus"
+    argus = "argus"
+
+
 class AttemptStatus(str, Enum):
     passed = "passed"
     failed = "failed"
@@ -114,6 +121,7 @@ class RunState(BaseModel):
     workspace: RunWorkspace = Field(default_factory=RunWorkspace)
     status: RunStatus = RunStatus.pending
     stage: RunStage = RunStage.queued
+    active_agent: RunAgent | None = None
     attempts: int = 0
     attempt_history: list[RunAttempt] = Field(default_factory=list)
     events: list[RunEvent] = Field(default_factory=list)
@@ -129,6 +137,7 @@ class RunSnapshot(BaseModel):
     request: str
     status: RunStatus
     stage: RunStage
+    active_agent: RunAgent | None = None
     attempts_used: int = Field(ge=0)
     max_attempts: int = Field(ge=1)
     cancel_requested: bool = False

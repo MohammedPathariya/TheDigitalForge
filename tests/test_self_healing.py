@@ -6,6 +6,7 @@ from backend.self_healing import (
     RepairTarget,
     build_repair_evidence,
     failure_kind_from_output,
+    infrastructure_retryable_from_output,
     sanitize_output,
 )
 
@@ -76,6 +77,77 @@ def test_application_syntax_failure_routes_to_developer_with_contract_guidance()
     assert candidate.failure_kind is FailureKind.candidate
     assert candidate.target is RepairTarget.developer
     assert "exact function names" in candidate.summary
+
+
+def test_missing_supported_dependency_is_non_retryable_infrastructure() -> None:
+    infrastructure = _evidence(
+        SandboxResult(
+            duration_seconds=0.1,
+            exit_code=2,
+            stdout=(
+                "test_solution.py:2: in <module>\n"
+                "    from fastapi import FastAPI\n"
+                "E   ModuleNotFoundError: No module named 'fastapi'"
+            ),
+        )
+    )
+
+    assert infrastructure.failure_kind is FailureKind.infrastructure
+    assert infrastructure.target is RepairTarget.system
+    assert infrastructure.retryable is False
+    assert infrastructure_retryable_from_output(infrastructure.as_prompt()) is False
+
+
+def test_missing_pydantic_email_validator_is_sandbox_infrastructure() -> None:
+    infrastructure = _evidence(
+        SandboxResult(
+            duration_seconds=0.1,
+            exit_code=2,
+            stdout=(
+                "solution.py:2: in <module>\n"
+                "E   ModuleNotFoundError: No module named 'email_validator'\n"
+                "E   ImportError: email-validator is not installed"
+            ),
+        )
+    )
+
+    assert infrastructure.failure_kind is FailureKind.infrastructure
+    assert infrastructure.target is RepairTarget.system
+    assert infrastructure.retryable is False
+
+
+def test_unrequested_missing_dependency_routes_to_the_file_that_imported_it() -> None:
+    broken_test = _evidence(
+        SandboxResult(
+            duration_seconds=0.1,
+            exit_code=2,
+            stdout=(
+                "test_solution.py:1: in <module>\n"
+                "    import hypothesis\n"
+                "E   ModuleNotFoundError: No module named 'hypothesis'"
+            ),
+        )
+    )
+    candidate = _evidence(
+        SandboxResult(
+            duration_seconds=0.1,
+            exit_code=2,
+            stdout=(
+                "test_solution.py:1: in <module>\n"
+                "    from solution import answer\n"
+                "solution.py:1: in <module>\n"
+                "    import hypothesis\n"
+                "E   ModuleNotFoundError: No module named 'hypothesis'"
+            ),
+        )
+    )
+
+    assert broken_test.failure_kind is FailureKind.test
+    assert broken_test.target is RepairTarget.tester
+    assert "outside the declared sandbox capability set" in broken_test.summary
+    assert candidate.failure_kind is FailureKind.candidate
+    assert candidate.target is RepairTarget.developer
+    assert "outside the declared sandbox capability set" in candidate.summary
 
 
 def test_sanitizes_and_bounds_repair_output() -> None:

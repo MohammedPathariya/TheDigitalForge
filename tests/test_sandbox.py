@@ -15,6 +15,7 @@ from backend.sandbox import (
     SandboxRequest,
     SandboxResult,
 )
+from backend.sandbox_dependencies import SANDBOX_PACKAGES, SUPPORTED_SANDBOX_IMPORTS
 from benchmark.catalog import get_task
 from benchmark.evaluator import evaluate_candidate
 
@@ -183,8 +184,8 @@ class FakeSandbox:
 
 
 class FakeImage:
-    def uv_pip_install(self, package: str) -> "FakeImage":
-        assert package == "pytest==9.1.1"
+    def uv_pip_install(self, *packages: str) -> "FakeImage":
+        assert packages == SANDBOX_PACKAGES
         return self
 
 
@@ -230,6 +231,24 @@ def test_modal_runner_enforces_limits_and_blocks_network() -> None:
     assert "8" in FakeModal.sandbox.exec_args
 
 
+def test_docker_and_modal_use_the_same_pinned_capability_set() -> None:
+    requirements = tuple(
+        line.strip()
+        for line in Path("sandbox/requirements.txt")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip() and not line.startswith("#")
+    )
+
+    assert requirements == SANDBOX_PACKAGES
+
+
+def test_sandbox_capabilities_are_present_in_the_project_lockfile() -> None:
+    locked = set(Path("requirements.lock").read_text(encoding="utf-8").splitlines())
+
+    assert set(SANDBOX_PACKAGES) <= locked
+
+
 @pytest.mark.skipif(
     not DockerSandboxRunner.available(), reason="Docker daemon is unavailable"
 )
@@ -238,6 +257,84 @@ def test_docker_runner_smoke() -> None:
 
     assert result.exit_code == 0, result.stderr or result.error
     assert result.stdout == "sandboxed\n"
+
+
+@pytest.mark.skipif(
+    not DockerSandboxRunner.available(), reason="Docker daemon is unavailable"
+)
+def test_fastapi_testclient_docker_smoke() -> None:
+    request = SandboxRequest(
+        files=(
+            SandboxFile(
+                path="main.py",
+                content=(
+                    "from fastapi import FastAPI\n"
+                    "app = FastAPI()\n"
+                    "@app.get('/health')\n"
+                    "def health(): return {'status': 'ok'}\n"
+                ),
+            ),
+            SandboxFile(
+                path="test_main.py",
+                content=(
+                    "from fastapi.testclient import TestClient\n"
+                    "from main import app\n"
+                    "def test_health():\n"
+                    "    assert TestClient(app).get('/health').json() == {'status': 'ok'}\n"
+                ),
+            ),
+        ),
+        command=("python", "-B", "-m", "pytest", "/workspace/test_main.py", "-q"),
+        limits=SandboxLimits(wall_time_seconds=10),
+    )
+
+    result = DockerSandboxRunner().run(request)
+
+    assert result.exit_code == 0, result.stderr or result.error
+
+
+@pytest.mark.skipif(
+    not DockerSandboxRunner.available(), reason="Docker daemon is unavailable"
+)
+def test_declared_capabilities_import_in_docker() -> None:
+    imports = "\n".join(f"import {module}" for module in SUPPORTED_SANDBOX_IMPORTS)
+    request = SandboxRequest(
+        files=(SandboxFile(path="imports.py", content=f"{imports}\nprint('ready')\n"),),
+        command=("python", "-B", "/workspace/imports.py"),
+        limits=SandboxLimits(wall_time_seconds=10),
+    )
+
+    result = DockerSandboxRunner().run(request)
+
+    assert result.exit_code == 0, result.stderr or result.error
+    assert result.stdout == "ready\n"
+
+
+@pytest.mark.skipif(
+    not DockerSandboxRunner.available(), reason="Docker daemon is unavailable"
+)
+def test_pydantic_email_validation_docker_smoke() -> None:
+    request = SandboxRequest(
+        files=(
+            SandboxFile(
+                path="email_model.py",
+                content=(
+                    "from pydantic import BaseModel, EmailStr\n"
+                    "class Customer(BaseModel):\n"
+                    "    email: EmailStr\n"
+                    "customer = Customer(email='USER@EXAMPLE.COM')\n"
+                    "print(customer.email)\n"
+                ),
+            ),
+        ),
+        command=("python", "-B", "/workspace/email_model.py"),
+        limits=SandboxLimits(wall_time_seconds=10),
+    )
+
+    result = DockerSandboxRunner().run(request)
+
+    assert result.exit_code == 0, result.stderr or result.error
+    assert result.stdout == "USER@example.com\n"
 
 
 @pytest.mark.skipif(

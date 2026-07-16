@@ -161,6 +161,7 @@ class RunManager:
                 update={
                     "status": state.status,
                     "stage": state.stage,
+                    "active_agent": state.active_agent,
                     "attempts_used": state.attempts,
                     "technical_brief": state.technical_brief,
                     "plan": state.plan,

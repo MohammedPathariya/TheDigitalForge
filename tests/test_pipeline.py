@@ -2,7 +2,7 @@ import pytest
 
 import backend.pipeline as pipeline_module
 from backend.config import Settings
-from backend.models import DevelopmentPlan, RunStage, RunState, RunStatus
+from backend.models import DevelopmentPlan, RunAgent, RunStage, RunState, RunStatus
 from backend.pipeline import DevelopmentCrew
 
 
@@ -48,6 +48,35 @@ def test_run_state_tracks_workflow_lifecycle_and_outputs() -> None:
     assert state.plan == plan
     assert state.test_results == "ALL TESTS PASSED"
     assert state.report == "Report"
+
+
+def test_pipeline_tracks_the_agent_currently_owning_the_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crew = DevelopmentCrew("build a solution", Settings(openai_api_key="test-key"))
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    observed_agents: list[RunAgent | None] = []
+
+    monkeypatch.setattr(
+        crew,
+        "_run_developer",
+        lambda _plan, _task: observed_agents.append(crew.state.active_agent),
+    )
+    monkeypatch.setattr(
+        crew,
+        "_run_test_author",
+        lambda _plan, _task: observed_agents.append(crew.state.active_agent),
+    )
+    monkeypatch.setattr(crew, "_run_tests", lambda _plan: "ALL TESTS PASSED")
+
+    crew._develop_and_test(plan)
+
+    assert observed_agents == [RunAgent.hephaestus, RunAgent.argus]
 
 
 @pytest.mark.parametrize(
@@ -359,6 +388,37 @@ def test_repeated_infrastructure_failures_stop_without_consuming_attempt(
 
     assert "INFRASTRUCTURE RETRIES EXHAUSTED" in result
     assert crew.state.attempts == 0
+
+
+def test_non_retryable_infrastructure_failure_stops_after_one_test_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crew = DevelopmentCrew(
+        "build a solution", Settings(openai_api_key="test-key", max_attempts=3)
+    )
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    executions = 0
+
+    def missing_dependency(_plan: DevelopmentPlan) -> str:
+        nonlocal executions
+        executions += 1
+        return "TESTS FAILED:\nFAILURE CLASS: infrastructure\nRETRYABLE: no"
+
+    monkeypatch.setattr(crew, "_run_developer", lambda _plan, _task: None)
+    monkeypatch.setattr(crew, "_run_test_author", lambda _plan, _task: None)
+    monkeypatch.setattr(crew, "_run_tests", missing_dependency)
+
+    result = crew._develop_and_test(plan)
+
+    assert "SANDBOX CONFIGURATION FAILURE" in result
+    assert executions == 1
+    assert crew.state.attempts == 0
+    assert len(crew.state.attempt_history) == 1
 
 
 def test_run_reports_infrastructure_exhaustion_separately(

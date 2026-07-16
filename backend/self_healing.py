@@ -6,6 +6,7 @@ from enum import Enum
 from pydantic import BaseModel, ConfigDict
 
 from .sandbox import SandboxResult
+from .sandbox_dependencies import SUPPORTED_SANDBOX_IMPORTS
 
 MAX_REPAIR_OUTPUT_CHARACTERS = 8_000
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -16,6 +17,10 @@ _CREDENTIAL = re.compile(
 )
 _OPENAI_KEY = re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b")
 _TEMP_SANDBOX_PATH = re.compile(r"/[^\s:'\"]*digital-forge-sandbox-[^/\s:'\"]+")
+_MISSING_MODULE = re.compile(
+    r"modulenotfounderror:\s+no module named\s+['\"]([^'\"]+)['\"]",
+    re.IGNORECASE,
+)
 _RESOURCE_MARKERS = (
     "cannot allocate memory",
     "memoryerror",
@@ -47,6 +52,7 @@ class RepairEvidence(BaseModel):
     summary: str
     stdout: str = ""
     stderr: str = ""
+    retryable: bool = True
 
     @property
     def consumes_attempt(self) -> bool:
@@ -57,6 +63,7 @@ class RepairEvidence(BaseModel):
             "TESTS FAILED:\n"
             f"FAILURE CLASS: {self.failure_kind.value}\n"
             f"RESPONSIBLE AGENT: {self.target.value}\n"
+            f"RETRYABLE: {'yes' if self.retryable else 'no'}\n"
             f"REPAIR GUIDANCE: {self.summary}\n"
             f"--- STDOUT ---\n{self.stdout or '<empty>'}\n"
             f"--- STDERR ---\n{self.stderr or '<empty>'}"
@@ -100,11 +107,31 @@ def build_repair_evidence(
             stdout=stdout,
             stderr=stderr,
         )
+    missing_module = _missing_module(combined)
+    if missing_module in SUPPORTED_SANDBOX_IMPORTS:
+        return RepairEvidence(
+            failure_kind=FailureKind.infrastructure,
+            target=RepairTarget.system,
+            summary=(
+                f"The declared sandbox dependency '{missing_module}' is unavailable. "
+                "Rebuild or repair the sandbox image; candidate code cannot fix this."
+            ),
+            stdout=stdout,
+            stderr=stderr,
+            retryable=False,
+        )
     if _is_test_failure(combined, code_file_path, test_file_path, result.exit_code):
+        summary = (
+            f"The test suite imported '{missing_module}', which is outside the declared "
+            "sandbox capability set. Remove it unless the original request explicitly "
+            "requires an unsupported dependency."
+            if missing_module
+            else "The test suite failed before it could validly evaluate the candidate. Repair only the tests."
+        )
         return RepairEvidence(
             failure_kind=FailureKind.test,
             target=RepairTarget.tester,
-            summary="The test suite failed before it could validly evaluate the candidate. Repair only the tests.",
+            summary=summary,
             stdout=stdout,
             stderr=stderr,
         )
@@ -113,6 +140,8 @@ def build_repair_evidence(
         "preserving the exact function names, imports, and return schema required by the "
         "original task."
         if re.search(r"syntaxerror|indentationerror", combined)
+        else f"The application imported '{missing_module}', which is outside the declared sandbox capability set. Remove it unless the original request explicitly requires an unsupported dependency."
+        if missing_module
         else "The candidate failed the generated test suite. Diagnose the assertion or exception and repair only the application code."
     )
     return RepairEvidence(
@@ -132,6 +161,11 @@ def failure_kind_from_output(output: str) -> FailureKind | None:
         return FailureKind(match.group(1))
     except ValueError:
         return None
+
+
+def infrastructure_retryable_from_output(output: str) -> bool:
+    match = re.search(r"^RETRYABLE:\s*(yes|no)\s*$", output, re.MULTILINE)
+    return match is None or match.group(1) == "yes"
 
 
 def sanitize_output(value: str) -> str:
@@ -167,4 +201,14 @@ def _is_test_failure(
         output,
         re.DOTALL,
     )
-    return test_error is not None and code_error is None
+    missing_test_dependency = (
+        _missing_module(output) is not None
+        and re.search(rf"{test_name}:\d+:\s+in <module>", output) is not None
+        and re.search(rf"{code_name}:\d+:\s+in <module>", output) is None
+    )
+    return (test_error is not None and code_error is None) or missing_test_dependency
+
+
+def _missing_module(output: str) -> str | None:
+    match = _MISSING_MODULE.search(output)
+    return match.group(1).split(".", 1)[0].lower() if match else None

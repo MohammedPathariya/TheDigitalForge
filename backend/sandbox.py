@@ -13,6 +13,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .sandbox_dependencies import SANDBOX_PACKAGES
+
 DEFAULT_DOCKER_IMAGE = "digital-forge-sandbox:py311"
 DEFAULT_MODAL_APP = "digital-forge-sandbox"
 MAX_SANDBOX_OUTPUT_CHARACTERS = 32_000
@@ -268,7 +270,7 @@ class ModalSandboxRunner:
             modal = self._modal or importlib.import_module("modal")
             app = modal.App.lookup(self.app_name, create_if_missing=True)
             image = modal.Image.debian_slim(python_version="3.11").uv_pip_install(
-                "pytest==9.1.1"
+                *SANDBOX_PACKAGES
             )
             limits = request.limits
             sandbox = modal.Sandbox.create(

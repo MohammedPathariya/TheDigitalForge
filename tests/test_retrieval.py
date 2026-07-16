@@ -48,6 +48,9 @@ def test_test_author_cannot_add_unstated_contract_rules() -> None:
         in tasks.test_suite.description
     )
     assert "remove or correct assertions" in tasks.test_suite.description
+    assert "Do not invent normalization" in tasks.test_suite.description
+    assert "public class and function names" in tasks.plan.description
+    assert "fastapi==0.139.0" in tasks.plan.description
 
 
 def test_retrieval_events_are_isolated_between_runs() -> None:

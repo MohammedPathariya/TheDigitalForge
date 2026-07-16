@@ -14,6 +14,7 @@ from .config import Settings
 from .models import (
     AttemptStatus,
     DevelopmentPlan,
+    RunAgent,
     RunAttempt,
     RunEvent,
     RunResponse,
@@ -23,11 +24,16 @@ from .models import (
 )
 from .retrieval import build_retrieval_tools
 from .sandbox import build_sandbox_runner
-from .self_healing import FailureKind, failure_kind_from_output
+from .self_healing import (
+    FailureKind,
+    failure_kind_from_output,
+    infrastructure_retryable_from_output,
+)
 from .tasks import build_tasks
 from .tools import build_file_system_tools
 
 INFRASTRUCTURE_EXHAUSTED_MARKER = "INFRASTRUCTURE RETRIES EXHAUSTED"
+INFRASTRUCTURE_CONFIGURATION_MARKER = "SANDBOX CONFIGURATION FAILURE"
 
 
 def _parse_json(raw_output: object) -> dict[str, object]:
@@ -87,7 +93,9 @@ class DevelopmentCrew:
         self.state.status = RunStatus.running
         try:
             self._transition(
-                RunStage.briefing, "Janus is preparing the technical brief."
+                RunStage.briefing,
+                "Janus is preparing the technical brief.",
+                RunAgent.janus,
             )
             self._checkpoint()
             technical_brief = str(
@@ -99,7 +107,9 @@ class DevelopmentCrew:
             )
             self.state.technical_brief = technical_brief
             self._transition(
-                RunStage.planning, "Athena is creating the development plan."
+                RunStage.planning,
+                "Athena is creating the development plan.",
+                RunAgent.athena,
             )
             self._checkpoint()
             plan = DevelopmentPlan.model_validate(
@@ -114,7 +124,11 @@ class DevelopmentCrew:
             self.state.plan = plan
             test_results = self._develop_and_test(plan)
             self.state.test_results = test_results
-            self._transition(RunStage.reporting, "Janus is compiling the final report.")
+            self._transition(
+                RunStage.reporting,
+                "Janus is compiling the final report.",
+                RunAgent.janus,
+            )
             self._checkpoint()
             report = self._generate_final_report(technical_brief, test_results, plan)
             self.state.report = report
@@ -125,6 +139,10 @@ class DevelopmentCrew:
             )
             if self.state.status is RunStatus.completed:
                 message = "The run completed and all tests passed."
+            elif INFRASTRUCTURE_CONFIGURATION_MARKER in test_results:
+                message = (
+                    "The run stopped because the sandbox capability set is unavailable."
+                )
             elif INFRASTRUCTURE_EXHAUSTED_MARKER in test_results:
                 message = (
                     "The run stopped after repeated sandbox infrastructure failures."
@@ -162,15 +180,27 @@ class DevelopmentCrew:
         test_results = ""
         candidate_attempts = 0
         infrastructure_retries = 0
-        self._transition(RunStage.developing, "Hephaestus is writing application code.")
+        self._transition(
+            RunStage.developing,
+            "Hephaestus is writing application code.",
+            RunAgent.hephaestus,
+        )
         self._checkpoint()
         self._run_developer(plan, developer_task)
-        self._transition(RunStage.developing, "Argus is writing the test suite.")
+        self._transition(
+            RunStage.developing,
+            "Argus is writing the test suite.",
+            RunAgent.argus,
+        )
         self._checkpoint()
         self._run_test_author(plan, tester_task)
 
         while candidate_attempts < self.settings.max_attempts:
-            self._transition(RunStage.testing, "Argus is running the generated tests.")
+            self._transition(
+                RunStage.testing,
+                "Argus is running the generated tests.",
+                RunAgent.argus,
+            )
             self._checkpoint()
             test_results = self._run_tests(plan)
             failure_kind = failure_kind_from_output(test_results)
@@ -183,6 +213,11 @@ class DevelopmentCrew:
                     candidate_attempt=None,
                     repair_target="system",
                 )
+                if not infrastructure_retryable_from_output(test_results):
+                    return (
+                        f"{test_results}\n{INFRASTRUCTURE_CONFIGURATION_MARKER}: "
+                        "candidate attempt was not consumed."
+                    )
                 if infrastructure_retries >= self.settings.max_attempts:
                     return (
                         f"{test_results}\n{INFRASTRUCTURE_EXHAUSTED_MARKER}: "
@@ -242,6 +277,7 @@ class DevelopmentCrew:
             self._transition(
                 RunStage.repairing,
                 f"The {repair_subject} is being repaired before the next attempt.",
+                (RunAgent.argus if repair_target == "tests" else RunAgent.hephaestus),
             )
             self._checkpoint()
             if file_to_fix == plan.test_file_name:
@@ -282,8 +318,11 @@ class DevelopmentCrew:
         )
         self._notify()
 
-    def _transition(self, stage: RunStage, message: str) -> None:
+    def _transition(
+        self, stage: RunStage, message: str, agent: RunAgent | None = None
+    ) -> None:
         self.state.stage = stage
+        self.state.active_agent = agent
         self.state.events.append(RunEvent(stage=stage, message=message))
         self._notify()
 
@@ -363,6 +402,8 @@ class DevelopmentCrew:
         outcome = (
             "All tests passed successfully."
             if "ALL TESTS PASSED" in tests_output
+            else "Process stopped because the sandbox capability set is unavailable."
+            if INFRASTRUCTURE_CONFIGURATION_MARKER in tests_output
             else "Process stopped after repeated sandbox infrastructure failures."
             if INFRASTRUCTURE_EXHAUSTED_MARKER in tests_output
             else "Process completed with failing tests."
