@@ -6,6 +6,7 @@ from backend.config import Settings
 def test_api_key_is_required_only_when_a_run_starts() -> None:
     settings = Settings(openai_api_key=None)
 
+    assert settings.openai_model_name == "gpt-4o-mini"
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
         settings.require_openai_api_key()
 

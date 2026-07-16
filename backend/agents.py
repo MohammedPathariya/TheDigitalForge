@@ -3,7 +3,7 @@
 from crewai import Agent
 
 
-def build_agents() -> dict[str, Agent]:
+def build_agents(model_name: str = "gpt-4o-mini") -> dict[str, Agent]:
     """Create stateless agents for one isolated pipeline run."""
     janus = Agent(
         name="Janus",
@@ -20,7 +20,9 @@ def build_agents() -> dict[str, Agent]:
         ),
         verbose=True,
         allow_delegation=False,
+        cache=False,
         memory=False,
+        llm=model_name,
     )
     athena = Agent(
         name="Athena",
@@ -36,7 +38,9 @@ def build_agents() -> dict[str, Agent]:
         ),
         verbose=True,
         allow_delegation=False,
+        cache=False,
         memory=False,
+        llm=model_name,
     )
     hephaestus = Agent(
         name="Hephaestus",
@@ -52,7 +56,9 @@ def build_agents() -> dict[str, Agent]:
         ),
         verbose=True,
         allow_delegation=False,
+        cache=False,
         memory=False,
+        llm=model_name,
     )
     argus = Agent(
         name="Argus",
@@ -68,7 +74,9 @@ def build_agents() -> dict[str, Agent]:
         ),
         verbose=True,
         allow_delegation=False,
+        cache=False,
         memory=False,
+        llm=model_name,
     )
     return {
         "liaison": janus,

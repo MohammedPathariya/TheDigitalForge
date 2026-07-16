@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     )
 
     openai_api_key: str | None = Field(default=None, repr=False)
+    openai_model_name: str = "gpt-4o-mini"
     host: str = "0.0.0.0"
     port: int = Field(default=8000, ge=1, le=65535)
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8501"]

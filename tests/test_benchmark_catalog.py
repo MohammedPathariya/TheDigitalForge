@@ -6,7 +6,7 @@ from benchmark.models import Difficulty
 def test_catalog_has_versioned_balanced_task_set() -> None:
     tasks = load_tasks()
 
-    assert BENCHMARK_VERSION == "1.0.0"
+    assert BENCHMARK_VERSION == "1.1.0"
     assert len(tasks) == 20
     assert len({task.id for task in tasks}) == 20
     assert sum(task.difficulty is Difficulty.easy for task in tasks) == 10

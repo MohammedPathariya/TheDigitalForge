@@ -1,5 +1,6 @@
 """Workspace and CrewAI tools scoped to one pipeline run."""
 
+import ast
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -38,6 +39,14 @@ def build_file_system_tools(
     @tool("save_file")
     def save_file(file_path: str, content: str) -> str:
         """Save text to a relative file path in this run's isolated workspace."""
+        if Path(file_path).suffix == ".py":
+            try:
+                ast.parse(content)
+            except SyntaxError as exc:
+                location = f"line {exc.lineno}" if exc.lineno else "unknown line"
+                return (
+                    f"Error: Python syntax validation failed at {location}: {exc.msg}"
+                )
         normalized = workspace.write(file_path, content)
         return f"File '{normalized}' saved in memory."
 

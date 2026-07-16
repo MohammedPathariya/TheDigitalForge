@@ -5,7 +5,7 @@ from typing import Any
 from backend.sandbox import SandboxRequest, SandboxResult
 from benchmark.baseline import SolutionGenerator, ZeroShotBaselineRunner, _extract_code
 from benchmark.catalog import get_task
-from benchmark.hidden_cases import HIDDEN_CASES
+from benchmark.hidden_cases import HIDDEN_CASES, to_jsonable
 from benchmark.models import BenchmarkTask, GeneratedSolution
 
 
@@ -30,7 +30,7 @@ class PassingSandboxRunner:
         task = get_task("forge_easy_02")
         results: list[dict[str, Any]] = [
             {
-                "value": json.loads(json.dumps(case.expected)),
+                "value": to_jsonable(case.expected),
                 "error_type": None,
             }
             for case in HIDDEN_CASES[task.id]
@@ -56,7 +56,7 @@ def test_zero_shot_runner_writes_structured_artifacts_without_exposing_cases(
     artifact = json.loads(report_path.read_text(encoding="utf-8"))
     assert report.tasks_passed == 1
     assert artifact["schema_version"] == "1.1.0"
-    assert artifact["benchmark_version"] == "1.0.0"
+    assert artifact["benchmark_version"] == "1.1.0"
     assert artifact["model"] == "test-model"
     assert artifact["sandbox_backend"] == "stub"
     assert artifact["results"][0]["response_id"] == "response-test"

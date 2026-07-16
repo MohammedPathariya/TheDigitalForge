@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 import backend.pipeline as pipeline_module
@@ -22,6 +24,8 @@ def test_complete_pipeline_instances_are_isolated() -> None:
     assert first.tasks.develop is not second.tasks.develop
     assert all(agent.memory is None for agent in first.agents.values())
     assert all(agent.memory is None for agent in second.agents.values())
+    assert all(agent.cache is False for agent in first.agents.values())
+    assert all(agent.cache is False for agent in second.agents.values())
 
 
 def test_run_state_tracks_workflow_lifecycle_and_outputs() -> None:
@@ -262,6 +266,117 @@ def test_timeout_routing_cannot_rewrite_tests(
     assert tester_tasks == ["Test the solution."]
 
 
+def test_request_contract_failure_routes_directly_to_developer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crew = DevelopmentCrew(
+        "Implement `required_name(value)`.",
+        Settings(openai_api_key="test-key", max_attempts=2),
+    )
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    developer_tasks: list[str] = []
+    results = iter(
+        [
+            "TESTS FAILED:\nFAILURE CLASS: candidate\n"
+            "REQUEST CONTRACT FAILURE: required_name is missing",
+            "ALL TESTS PASSED",
+        ]
+    )
+
+    monkeypatch.setattr(
+        crew,
+        "_run_developer",
+        lambda _plan, task: developer_tasks.append(task),
+    )
+    monkeypatch.setattr(crew, "_run_test_author", lambda _plan, _task: None)
+    monkeypatch.setattr(crew, "_run_tests", lambda _plan: next(results))
+    monkeypatch.setattr(
+        crew,
+        "_analyze_failure",
+        lambda _plan, _result: pytest.fail("contract failures route directly"),
+    )
+
+    result = crew._develop_and_test(plan)
+
+    assert result == "ALL TESTS PASSED"
+    assert developer_tasks[0] == "Implement the solution."
+    assert "REQUEST CONTRACT FAILURE" in developer_tasks[1]
+
+
+def test_run_tests_preflight_rejects_missing_explicit_function(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crew = DevelopmentCrew(
+        "Implement `required_name(value)`.", Settings(openai_api_key="test-key")
+    )
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement required_name.",
+        tester_task="Test required_name.",
+    )
+    crew.state.workspace.write("solution.py", "def wrong_name(value): return value\n")
+    crew.state.workspace.write(
+        "test_solution.py",
+        "from solution import wrong_name\n\ndef test_value(): assert wrong_name(1) == 1\n",
+    )
+    monkeypatch.setattr(
+        crew,
+        "run_tests_tool",
+        SimpleNamespace(
+            run=lambda **_kwargs: pytest.fail(
+                "invalid artifacts must not reach the sandbox"
+            )
+        ),
+    )
+
+    result = crew._run_tests(plan)
+
+    assert "FAILURE CLASS: candidate" in result
+    assert "required_name" in result
+
+
+def test_run_tests_preflight_rejects_test_without_application_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crew = DevelopmentCrew(
+        "Implement `required_name(value)`.", Settings(openai_api_key="test-key")
+    )
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement required_name.",
+        tester_task="Test required_name.",
+    )
+    crew.state.workspace.write(
+        "solution.py", "def required_name(value): return value\n"
+    )
+    crew.state.workspace.write(
+        "test_solution.py",
+        "def required_name(value): return value\n\n"
+        "def test_value(): assert required_name(1) == 1\n",
+    )
+    monkeypatch.setattr(
+        crew,
+        "run_tests_tool",
+        SimpleNamespace(
+            run=lambda **_kwargs: pytest.fail(
+                "invalid artifacts must not reach the sandbox"
+            )
+        ),
+    )
+
+    result = crew._run_tests(plan)
+
+    assert "FAILURE CLASS: test" in result
+    assert "must import the application module" in result
+
+
 def test_repair_crews_receive_original_artifacts_and_requirements(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -298,10 +413,13 @@ def test_repair_crews_receive_original_artifacts_and_requirements(
     crew._analyze_failure(plan, "TESTS FAILED")
 
     assert captured_inputs[0]["original_developer_task"] == plan.developer_task
+    assert captured_inputs[0]["user_request"] == "build a solution"
     assert captured_inputs[0]["current_code"] == "def answer(): return 1\n"
     assert captured_inputs[1]["original_tester_task"] == plan.tester_task
+    assert captured_inputs[1]["user_request"] == "build a solution"
     assert "assert answer() == 2" in str(captured_inputs[1]["current_tests"])
     assert captured_inputs[2]["current_code"] == "def answer(): return 1\n"
+    assert captured_inputs[2]["user_request"] == "build a solution"
     assert "assert answer() == 2" in str(captured_inputs[2]["current_tests"])
 
 
