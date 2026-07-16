@@ -8,7 +8,7 @@ from pydantic import TypeAdapter
 
 from .models import BenchmarkTask
 
-BENCHMARK_VERSION = "1.0.0"
+BENCHMARK_VERSION = "1.1.0"
 CATALOG_PATH = Path(__file__).parent / "tasks" / "v1.json"
 
 

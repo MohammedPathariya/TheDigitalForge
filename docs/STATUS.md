@@ -84,12 +84,32 @@ accepted decisions. Day 7 deployment work has not started.
 - Required development plans, implementations, and generated tests to share the same public
   class names as well as function names, reducing model/test import drift on nested Pydantic
   tasks.
+- Removed horizontal scrolling from development plans. The two plan columns can now shrink
+  within their panel, and long filenames, field values, and list items wrap in place while
+  the existing vertical scrolling remains available.
 - Added a targeted PostCSS 8.5.19 override because Next.js 16.2.10 pins a version covered
   by a moderate-severity advisory. The override passes the frontend build and leaves the
   production dependency audit clean.
+- Disabled CrewAI tool-result caching for every agent. Mutable `save_file` and `run_tests`
+  calls can no longer replay stale outputs across development and repair stages.
+- Made the original user request an immutable input to planning, implementation, test
+  authoring, and failure analysis instead of relying on generated briefs and plans alone.
+- Added deterministic generated-artifact validation. Invalid Python is rejected before it
+  overwrites a workspace file, explicit backtick-delimited function contracts are checked
+  before sandbox execution, and generated tests must import the real application module
+  rather than embedding a replacement implementation.
+- Routed deterministic request-contract failures directly to Hephaestus and test-artifact
+  failures directly to Argus, avoiding an unnecessary Athena diagnosis call.
 
 ## Verification performed
 
+- `.venv/bin/pytest -q` passed with 86 tests and five environment-dependent tests skipped
+  after the benchmark-driven orchestration fixes.
+- `ruff check backend benchmark rag tests`, `ruff format --check backend benchmark rag tests`,
+  `mypy backend benchmark rag tests`, and `git diff --check` passed after those fixes.
+- Replayed deterministic validation against the six interrupted v1.1.0 candidates without
+  API calls. It identified the renamed `load_inventory_deltas` contract and the invalid
+  `route_ticket` syntax before sandbox execution.
 - `.venv/bin/pytest -q` passed with 80 tests, including five live Docker integration paths
   for basic isolation, declared-package imports, Pydantic `EmailStr`, the hidden benchmark
   evaluator, and FastAPI `TestClient` execution.
@@ -141,9 +161,41 @@ accepted decisions. Day 7 deployment work has not started.
   interrupt a CrewAI or model request already in progress.
 - The public one-run concurrency limit, rate limits, request timeouts, and model spending
   controls remain Day 7 work. The local Day 6 run manager does not claim those protections.
-- No real algorithm benchmark report is currently present under `benchmark-results/`, so
-  the verified dashboard correctly shows an unmeasured state. Full benchmark configurations
-  remain after-week measurement work.
+- The zero-shot `gpt-4` algorithm benchmark is now measured at 18/20 overall,
+  with 9/10 easy and 9/10 medium tasks passing on historical benchmark v1.0.0.
+  That suite overemphasized single-function algorithm tasks and is no longer the
+  active comparison suite. Benchmark v1.1.0 now mixes workflow-data,
+  validation, reconciliation, reporting, configuration, and state-management
+  tasks. Old v1.0.0 reports are preserved but filtered out of the active
+  dashboard.
+- The Digital Forge v1.0.0 comparison remains incomplete: a one-task smoke run
+  scored 0/1, and the official run was stopped during its fourth task because
+  model usage was too expensive. The interrupted run has no aggregate score and
+  must not be used for claims. See `docs/BENCHMARK_INITIAL_RESULTS.md` for the
+  preserved artifacts and findings.
+- The active v1.1.0 zero-shot `gpt-4o-mini` baseline has been measured at 14/20
+  overall, with 7/10 easy and 7/10 medium tasks passing. The valid report is
+  `benchmark-results/3da7bfb192c84a47aedc04a1d20be0f7/report.json`. Two invalid
+  zero-token pre-runs were quarantined by renaming their `report.json` files so
+  the benchmark dashboard only loads the valid v1.1.0 result.
+- The first active v1.1.0 Digital Forge `gpt-4o-mini` run was stopped during
+  `forge_easy_07` at the user's request. No aggregate score is available because
+  the runner writes `report.json` only after all selected tasks finish. Six
+  persisted candidates were re-evaluated locally with Docker; only
+  `forge_easy_05` passed. The interrupted artifact is
+  `benchmark-results/8afe20c0708f45a693c903445e75f91b/interrupted.json`.
+- The structural causes found in that interrupted run are now fixed locally: stale CrewAI
+  tool caching is disabled, the original request is preserved through every code-producing
+  stage, and invalid function/import/syntax artifacts fail deterministic preflight checks.
+  The three semantic failures still require a small paid pilot to measure whether direct
+  request propagation improves live model behavior.
+- The benchmark runner does not checkpoint task results or capture CrewAI token
+  usage and cost. Add resumable per-task reports, spending limits, and usage
+  telemetry before another paid Digital Forge benchmark.
+- The local Digital Forge default model has been changed from CrewAI's effective
+  `gpt-4` default to explicit `gpt-4o-mini` via `OPENAI_MODEL_NAME` to reduce
+  routine localhost and pilot-run cost. Use an explicit model override only for
+  deliberate paid comparisons.
 - A paid end-to-end run was not repeated after the structured-plan correction. Local tests
   cover normalization and workflow boundaries, but final live-model output quality remains
   to be reverified deliberately.
@@ -170,8 +222,7 @@ by displaying only precomputed, measured artifacts and never triggering or inven
 
 ## Exact next task
 
-Implement Day 7, Deploy and verify: deploy the frontend to Vercel, deploy FastAPI and
-CrewAI to Render Free, connect hosted execution to Modal, add rate limits, request
-timeouts, one-run concurrency, and model spending controls, then run deployment smoke
-tests and finish project documentation. Do not run full benchmark configurations or update
-resume and LinkedIn claims until the separate measured-results work begins.
+Finish the benchmark safety controls before more paid evaluation: checkpoint each task, add
+resume support and per-call usage/cost telemetry, enforce model spending limits, and then run
+a three-task pilot. Do not run another full Digital Forge benchmark or update resume and
+LinkedIn comparison claims until that pilot is reviewed.

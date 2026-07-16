@@ -5,7 +5,7 @@ from typing import Any
 from backend.sandbox import SandboxRequest, SandboxResult
 from benchmark.catalog import get_task
 from benchmark.evaluator import evaluate_candidate
-from benchmark.hidden_cases import HIDDEN_CASES
+from benchmark.hidden_cases import HIDDEN_CASES, to_jsonable
 
 
 class StubSandboxRunner:
@@ -32,7 +32,7 @@ def _outputs(values: list[Any]) -> dict[str, Any]:
 
 
 def _expected(task_id: str) -> list[Any]:
-    return [json.loads(json.dumps(case.expected)) for case in HIDDEN_CASES[task_id]]
+    return [to_jsonable(case.expected) for case in HIDDEN_CASES[task_id]]
 
 
 def _candidate(tmp_path: Path, code: str = "def solution(): pass\n") -> Path:
@@ -55,7 +55,7 @@ def test_evaluator_accepts_correct_candidate_without_copying_expected_outputs(
     sandbox_files = "\n".join(file.content for file in runner.request.files)
     assert "HIDDEN_CASES" not in sandbox_files
     assert json.loads(runner.request.stdin) == [
-        json.loads(json.dumps(case.args)) for case in HIDDEN_CASES[task.id]
+        to_jsonable(case.args) for case in HIDDEN_CASES[task.id]
     ]
 
 
@@ -89,17 +89,27 @@ def test_evaluator_sanitizes_candidate_exceptions(tmp_path: Path) -> None:
     assert result.error == "candidate raised ValueError during hidden case 0"
 
 
-def test_correct_palindrome_reference_matches_all_hidden_cases(tmp_path: Path) -> None:
-    task = get_task("forge_easy_09")
+def test_correct_slug_reference_matches_all_hidden_cases(tmp_path: Path) -> None:
+    task = get_task("forge_easy_08")
     values = []
     for case in HIDDEN_CASES[task.id]:
-        text = case.args[0]
-        normalized = "".join(
-            character.lower()
-            for character in text
-            if character.isascii() and character.isalnum()
-        )
-        values.append(normalized == normalized[::-1])
+        title, existing = to_jsonable(case.args)
+        slug = []
+        in_separator = False
+        for character in title.lower():
+            if character.isascii() and character.isalnum():
+                slug.append(character)
+                in_separator = False
+            elif slug and not in_separator:
+                slug.append("-")
+                in_separator = True
+        base = "".join(slug).strip("-") or "item"
+        candidate = base
+        suffix = 2
+        while candidate in existing:
+            candidate = f"{base}-{suffix}"
+            suffix += 1
+        values.append(candidate)
 
     result = evaluate_candidate(
         task, _candidate(tmp_path), StubSandboxRunner(_outputs(values))
@@ -108,17 +118,33 @@ def test_correct_palindrome_reference_matches_all_hidden_cases(tmp_path: Path) -
     assert result.passed is True
 
 
-def test_correct_budget_pair_reference_matches_all_hidden_cases(tmp_path: Path) -> None:
-    task = get_task("forge_medium_09")
+def test_correct_deployment_order_reference_matches_all_hidden_cases(
+    tmp_path: Path,
+) -> None:
+    task = get_task("forge_medium_05")
     values = []
     for case in HIDDEN_CASES[task.id]:
-        costs, budget = case.args
-        ranked = (
-            (abs(costs[i] + costs[j] - budget), i, j)
-            for i in range(len(costs))
-            for j in range(i + 1, len(costs))
-        )
-        values.append(list(min(ranked)[1:]))
+        services, dependencies = to_jsonable(case.args)
+        service_set = set(services)
+        outgoing: dict[str, set[str]] = {service: set() for service in service_set}
+        incoming = {service: 0 for service in service_set}
+        for before, after in dependencies:
+            if before not in service_set or after not in service_set:
+                continue
+            if after not in outgoing[before]:
+                outgoing[before].add(after)
+                incoming[after] += 1
+        available = sorted(service for service, count in incoming.items() if count == 0)
+        order = []
+        while available:
+            current = available.pop(0)
+            order.append(current)
+            for after in sorted(outgoing[current]):
+                incoming[after] -= 1
+                if incoming[after] == 0:
+                    available.append(after)
+                    available.sort()
+        values.append(order if len(order) == len(service_set) else [])
 
     result = evaluate_candidate(
         task, _candidate(tmp_path), StubSandboxRunner(_outputs(values))

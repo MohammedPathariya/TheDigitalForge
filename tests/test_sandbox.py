@@ -343,7 +343,21 @@ def test_pydantic_email_validation_docker_smoke() -> None:
 def test_benchmark_evaluator_docker_smoke(tmp_path: Path) -> None:
     candidate = tmp_path / "candidate.py"
     candidate.write_text(
-        "def dedupe_crates(crate_ids):\n    return list(dict.fromkeys(crate_ids))\n",
+        (
+            "def normalize_user_record(record):\n"
+            "    email = str(record.get('email', '')).strip().lower()\n"
+            "    display_name = str(record.get('display_name', '')).strip()\n"
+            "    if not display_name:\n"
+            "        display_name = email.split('@', 1)[0] or 'unknown'\n"
+            "    active = record.get('active', True)\n"
+            "    if isinstance(active, str):\n"
+            "        active = active.strip().lower()\n"
+            "    return {\n"
+            "        'email': email,\n"
+            "        'display_name': display_name,\n"
+            "        'active': active not in {False, 0, 'false', 'no', '0'},\n"
+            "    }\n"
+        ),
         encoding="utf-8",
     )
 

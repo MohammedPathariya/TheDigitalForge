@@ -42,7 +42,9 @@ def build_tasks(
     plan = Task(
         description=(
             "Turn the technical brief into an actionable development plan that covers every "
-            "requirement and success criterion.\n\nTechnical Brief:\n'''\n"
+            "requirement and success criterion. The original user request below is the "
+            "immutable source of truth when it conflicts with the brief.\n\nOriginal User "
+            "Request:\n'''\n{user_request}\n'''\n\nTechnical Brief:\n'''\n"
             "{technical_brief}\n'''\n\nReturn one valid JSON object with four keys: "
             "'file_name' for a PEP 8 Python filename, 'test_file_name' for its pytest "
             "suite, 'developer_task' as one JSON string with precise functions, inputs, "
@@ -72,7 +74,9 @@ def build_tasks(
         description=(
             "Implement the current instruction while preserving every original requirement. "
             "Do not add functionality or libraries that were not requested. If current code "
-            "is present, repair that code and preserve unaffected behavior.\n\nOriginal "
+            "is present, repair that code and preserve unaffected behavior. The original user "
+            "request is the immutable source of truth.\n\nOriginal User Request:\n'''\n"
+            "{user_request}\n'''\n\nOriginal "
             "Developer Task:\n'''\n{original_developer_task}\n'''\n\nCurrent "
             "Instruction:\n'''\n{developer_task}\n'''\n\nCurrent Code:\n'''\n"
             "{current_code}\n'''\n\nUse the exact public class and function names, file name, return keys, and behavior "
@@ -92,7 +96,9 @@ def build_tasks(
         description=(
             "Implement the current testing instruction while preserving the original test "
             "plan. Assertions must check exact expected outcomes. If current tests are "
-            "present, repair only those tests and preserve unaffected coverage.\n\nOriginal "
+            "present, repair only those tests and preserve unaffected coverage. The original "
+            "user request is the immutable source of truth.\n\nOriginal User Request:\n'''\n"
+            "{user_request}\n'''\n\nOriginal "
             "Testing Plan:\n'''\n{original_tester_task}\n'''\n\nCurrent Testing "
             "Instruction:\n'''\n{tester_task}\n'''\n\nCurrent Tests:\n'''\n"
             "{current_tests}\n'''\n\nUse the exact application file name, public class and function names, return keys, and "
@@ -124,7 +130,9 @@ def build_tasks(
     )
     analyze_failure = Task(
         description=(
-            "Use the sanitized failure class and evidence to identify the root cause. "
+            "Use the sanitized failure class and evidence to identify the root cause. The "
+            "original user request is the immutable source of truth.\n\nOriginal User "
+            "Request:\n'''\n{user_request}\n'''\n\n"
             "Candidate, timeout, and resource failures normally route to {file_name}; test "
             "failures normally route to {test_file_name}. Do not override that routing "
             "without evidence in the log. Return one valid JSON object with "

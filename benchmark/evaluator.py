@@ -14,7 +14,7 @@ from backend.sandbox import (
     SandboxRunner,
 )
 
-from .hidden_cases import HIDDEN_CASES
+from .hidden_cases import HIDDEN_CASES, to_jsonable
 from .models import BenchmarkTask, EvaluationResult
 
 WORKER_PATH = Path(__file__).with_name("_worker.py")
@@ -61,7 +61,7 @@ def evaluate_candidate(
                 "/workspace/candidate.py",
                 task.function_name,
             ),
-            stdin=json.dumps([case.args for case in cases]),
+            stdin=json.dumps([to_jsonable(case.args) for case in cases]),
             limits=SandboxLimits(wall_time_seconds=task.time_limit_seconds),
         )
     )
@@ -115,7 +115,7 @@ def evaluate_candidate(
                 index,
                 f"candidate raised {result.error_type}",
             )
-        expected = json.loads(json.dumps(case.expected))
+        expected = to_jsonable(case.expected)
         if result.value != expected:
             return _failed_result(
                 cases, execution.duration_seconds, index, "hidden case failed"

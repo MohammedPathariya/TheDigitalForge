@@ -10,6 +10,10 @@ from crewai import Agent, Crew
 from rag.index import get_retriever
 
 from .agents import build_agents
+from .artifact_validation import (
+    validate_application_artifact,
+    validate_test_artifact,
+)
 from .config import Settings
 from .models import (
     AttemptStatus,
@@ -66,7 +70,7 @@ class DevelopmentCrew:
         )
         self.on_update = on_update
         self.is_cancel_requested = is_cancel_requested or (lambda: False)
-        self.agents: dict[str, Agent] = build_agents()
+        self.agents: dict[str, Agent] = build_agents(self.settings.openai_model_name)
         sandbox_runner = build_sandbox_runner(
             self.settings.sandbox_backend,
             self.settings.docker_sandbox_image,
@@ -118,7 +122,12 @@ class DevelopmentCrew:
                         agents=[self.agents["lead"]],
                         tasks=[self.tasks.plan],
                         verbose=False,
-                    ).kickoff(inputs={"technical_brief": technical_brief})
+                    ).kickoff(
+                        inputs={
+                            "user_request": self.state.request,
+                            "technical_brief": technical_brief,
+                        }
+                    )
                 )
             )
             self.state.plan = plan
@@ -253,7 +262,10 @@ class DevelopmentCrew:
                     "Repair only the current test suite using this sanitized failure "
                     f"evidence:\n{test_results}"
                 )
-            elif failure_kind in {FailureKind.timeout, FailureKind.resource}:
+            elif (
+                failure_kind in {FailureKind.timeout, FailureKind.resource}
+                or "REQUEST CONTRACT FAILURE:" in test_results
+            ):
                 file_to_fix = plan.file_name
                 next_task = (
                     "Repair only the current application code using this sanitized "
@@ -343,6 +355,7 @@ class DevelopmentCrew:
         ).kickoff(
             inputs={
                 "original_developer_task": plan.developer_task,
+                "user_request": self.state.request,
                 "developer_task": developer_task,
                 "file_name": plan.file_name,
                 "current_code": current_code or "<no existing application code>",
@@ -358,6 +371,7 @@ class DevelopmentCrew:
         ).kickoff(
             inputs={
                 "original_tester_task": plan.tester_task,
+                "user_request": self.state.request,
                 "tester_task": tester_task,
                 "file_name": plan.file_name,
                 "test_file_name": plan.test_file_name,
@@ -366,6 +380,27 @@ class DevelopmentCrew:
         )
 
     def _run_tests(self, plan: DevelopmentPlan) -> str:
+        application_code = self.state.workspace.read(plan.file_name)
+        if application_code is not None:
+            application_error = validate_application_artifact(
+                self.state.request, application_code
+            )
+            if application_error:
+                return (
+                    "TESTS FAILED:\nFAILURE CLASS: candidate\n"
+                    f"REQUEST CONTRACT FAILURE: {application_error}"
+                )
+
+        test_code = self.state.workspace.read(plan.test_file_name)
+        if test_code is not None:
+            test_error = validate_test_artifact(
+                plan.file_name, self.state.request, test_code
+            )
+            if test_error:
+                return (
+                    "TESTS FAILED:\nFAILURE CLASS: test\n"
+                    f"TEST ARTIFACT FAILURE: {test_error}"
+                )
         return str(self.run_tests_tool.run(test_file_path=plan.test_file_name))
 
     def _analyze_failure(
@@ -381,6 +416,7 @@ class DevelopmentCrew:
             ).kickoff(
                 inputs={
                     "developer_task": plan.developer_task,
+                    "user_request": self.state.request,
                     "test_failure_log": test_results,
                     "file_name": plan.file_name,
                     "test_file_name": plan.test_file_name,

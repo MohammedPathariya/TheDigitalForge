@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from openai import OpenAI
 
+from backend.config import Settings
 from backend.sandbox import (
     DockerSandboxRunner,
     ModalSandboxRunner,
@@ -38,7 +39,7 @@ class SolutionGenerator(Protocol):
 
 class OpenAISolutionGenerator:
     def __init__(self, client: OpenAI | None = None):
-        self.client = client or OpenAI()
+        self.client = client or OpenAI(api_key=Settings().require_openai_api_key())
 
     def generate(self, task: BenchmarkTask, model: str) -> GeneratedSolution:
         response = self.client.responses.create(
