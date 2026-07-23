@@ -19,8 +19,8 @@ const MAX_REQUEST_LENGTH = 20_000;
 
 const EXAMPLES = [
   "Build a Python function that validates nested brackets and include a focused pytest suite.",
-  "Create a typed Python client for a weather API with clear error handling and unit tests.",
-  "Implement a stable deduplication function that preserves input order and test edge cases.",
+  "Build a Python function that groups orders by customer and summarizes completed totals, pending totals, and order counts.",
+  "Implement a stable deduplication function that preserves input order and include a focused pytest suite.",
 ];
 
 const PIPELINE: Array<{

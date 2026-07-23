@@ -42,6 +42,9 @@ def test_only_lead_and_developer_tasks_receive_retrieval_tool() -> None:
 def test_test_author_cannot_add_unstated_contract_rules() -> None:
     tasks = build_tasks(build_agents(), [])
 
+    assert "exactly one pytest test function" in tasks.test_suite.description
+    assert "type-subtlety cases" in tasks.test_suite.description
+    assert "exactly one representative happy-path case" in tasks.plan.description
     assert "case-sensitive unless" in tasks.test_suite.description
     assert (
         "Do not assert an exact exception message unless"
