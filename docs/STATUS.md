@@ -113,6 +113,9 @@ accepted decisions. Day 7 deployment work has not started.
 - Changed test-owned semantic repair to discard the invalid generated suite before asking Argus
   for a fresh suite. This prevents incorrect expected values from anchoring subsequent repairs
   while preserving the original request and typed testing plan as the source of truth.
+- Added benchmark checkpointing and guarded early-stop support. Each completed task now writes a
+  task-level checkpoint before the aggregate report is finalized, and benchmark CLI runs can stop
+  after a configured consecutive-failure streak unless the suite is already near completion.
 
 ## Verification performed
 
@@ -121,6 +124,15 @@ accepted decisions. Day 7 deployment work has not started.
   on attempt two. Normalization run `4a93f7cd` reported success on attempt three, but its final
   code violated the original display-name fallback and active-string normalization rules, so it
   must not be counted as a successful run. Further paid prompts were stopped.
+- Paid guarded benchmark verification on 2026-07-23 completed the active v1.1.0 Digital Forge
+  `gpt-4o-mini` run at 16/20 overall, with 9/10 easy and 7/10 medium tasks passing. The measured
+  report is `benchmark-results/46e08fb1861141cf82fad76ef676ce5b/report.json`, with checkpoints
+  under `benchmark-results/46e08fb1861141cf82fad76ef676ce5b/checkpoints/`. Failed tasks were
+  `forge_easy_07`, `forge_medium_01`, `forge_medium_02`, and `forge_medium_06`.
+- Paid zero-shot `gpt-4` verification on 2026-07-23 completed a v1.1.0 comparison run
+  at 15/20 overall, with 8/10 easy and 7/10 medium tasks passing. That report is archived at
+  `benchmark-results/ce0abe92172b45508794eb5e25928f70/report.json.archived` while the dashboard
+  keeps the same-model `gpt-4o-mini` comparison active.
 - After the feature-flag reliability fix, `.venv/bin/pytest -q` passed with 86 tests
   and five environment-dependent tests skipped. Ruff checks and formatting, mypy,
   frontend lint and type-check, the production frontend build, and a local browser
@@ -197,23 +209,22 @@ accepted decisions. Day 7 deployment work has not started.
   preserved artifacts and findings.
 - The active v1.1.0 zero-shot `gpt-4o-mini` baseline has been measured at 14/20
   overall, with 7/10 easy and 7/10 medium tasks passing. The valid report is
-  `benchmark-results/3da7bfb192c84a47aedc04a1d20be0f7/report.json`. Two invalid
-  zero-token pre-runs were quarantined by renaming their `report.json` files so
-  the benchmark dashboard only loads the valid v1.1.0 result.
+  `benchmark-results/3da7bfb192c84a47aedc04a1d20be0f7/report.json`. Two invalid zero-token
+  pre-runs were quarantined by renaming their `report.json` files so
+  the benchmark dashboard only loads measured v1.1.0 results.
 - The first active v1.1.0 Digital Forge `gpt-4o-mini` run was stopped during
   `forge_easy_07` at the user's request. No aggregate score is available because
   the runner writes `report.json` only after all selected tasks finish. Six
   persisted candidates were re-evaluated locally with Docker; only
   `forge_easy_05` passed. The interrupted artifact is
   `benchmark-results/8afe20c0708f45a693c903445e75f91b/interrupted.json`.
-- The structural causes found in that interrupted run are now fixed locally: stale CrewAI
+- The structural causes found in that interrupted run are now fixed and remeasured: stale CrewAI
   tool caching is disabled, the original request is preserved through every code-producing
-  stage, and invalid function/import/syntax artifacts fail deterministic preflight checks.
-  The three semantic failures still require a small paid pilot to measure whether direct
-  request propagation improves live model behavior.
-- The benchmark runner does not checkpoint task results or capture CrewAI token
-  usage and cost. Add resumable per-task reports, spending limits, and usage
-  telemetry before another paid Digital Forge benchmark.
+  stage, invalid function/import/syntax artifacts fail deterministic preflight checks, and the
+  guarded 2026-07-23 run completed at 16/20 on v1.1.0.
+- The benchmark runner now checkpoints task results, but it still does not capture CrewAI token
+  usage and cost. Add spending limits, resumable execution, and usage telemetry before another
+  expensive benchmark run.
 - The local Digital Forge default model has been changed from CrewAI's effective
   `gpt-4` default to explicit `gpt-4o-mini` via `OPENAI_MODEL_NAME` to reduce
   routine localhost and pilot-run cost. Use an explicit model override only for

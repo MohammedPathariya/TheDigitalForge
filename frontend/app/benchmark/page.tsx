@@ -25,7 +25,9 @@ export default function BenchmarkPage() {
     getBenchmarks(controller.signal)
       .then((data) => {
         setReports(data);
-        if (data[0]) setSelectedRun(data[0].run_id);
+        const primaryReport =
+          data.find((item) => item.model.startsWith("digital-forge:")) ?? data[0];
+        if (primaryReport) setSelectedRun(primaryReport.run_id);
       })
       .catch((reason) => {
         if (!controller.signal.aborted) {
@@ -63,16 +65,25 @@ export default function BenchmarkPage() {
               </p>
             </div>
             {reports.length > 1 && (
-              <label className="report-picker">
-                Report
-                <select value={selectedRun} onChange={(event) => setSelectedRun(event.target.value)}>
+              <div className="report-picker" aria-label="Benchmark report">
+                <span>Report</span>
+                <div className="report-options">
                   {reports.map((item) => (
-                    <option value={item.run_id} key={item.run_id}>
-                      {item.model} · {new Date(item.completed_at).toLocaleDateString()}
-                    </option>
+                    <button
+                      type="button"
+                      className={selectedRun === item.run_id ? "active" : ""}
+                      onClick={() => setSelectedRun(item.run_id)}
+                      key={item.run_id}
+                    >
+                      <strong>{item.model}</strong>
+                      <span>
+                        {item.tasks_passed}/{item.tasks_total} ·{" "}
+                        {new Date(item.completed_at).toLocaleDateString()}
+                      </span>
+                    </button>
                   ))}
-                </select>
-              </label>
+                </div>
+              </div>
             )}
           </div>
         </section>
@@ -161,10 +172,6 @@ function BenchmarkResults({
 }) {
   const easy = report.results.filter((result) => result.difficulty === "easy");
   const medium = report.results.filter((result) => result.difficulty === "medium");
-  const averageDuration = report.results.length
-    ? report.results.reduce((total, result) => total + result.duration_seconds, 0) /
-      report.results.length
-    : 0;
 
   return (
     <>
@@ -190,11 +197,6 @@ function BenchmarkResults({
             <span>Medium</span>
             <strong>{percent(medium.filter((item) => item.passed).length, medium.length)}</strong>
             <p>{medium.filter((item) => item.passed).length} of {medium.length} tasks</p>
-          </article>
-          <article className="metric-card">
-            <span>Average execution</span>
-            <strong>{averageDuration.toFixed(2)}s</strong>
-            <p>Sandbox duration per task</p>
           </article>
         </div>
       </section>
