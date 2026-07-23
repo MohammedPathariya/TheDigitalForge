@@ -104,6 +104,9 @@ accepted decisions. Day 7 deployment work has not started.
   the typed `DevelopmentPlan` schema with prose implementation logic instead of nested example
   data, all agents use temperature zero, and repaired test suites must re-audit every assertion
   against the original request before execution.
+- Corrected the typed-plan integration after localhost verification exposed that CrewAI renders
+  `CrewOutput.__str__()` as a Pydantic representation rather than JSON. The pipeline now reads
+  typed `pydantic` and `json_dict` output directly before falling back to JSON text parsing.
 
 ## Verification performed
 

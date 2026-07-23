@@ -6,6 +6,7 @@ from collections.abc import Callable
 from uuid import UUID
 
 from crewai import Agent, Crew
+from pydantic import BaseModel
 
 from rag.index import get_retriever
 
@@ -41,6 +42,14 @@ INFRASTRUCTURE_CONFIGURATION_MARKER = "SANDBOX CONFIGURATION FAILURE"
 
 
 def _parse_json(raw_output: object) -> dict[str, object]:
+    structured_output = getattr(raw_output, "pydantic", None)
+    if isinstance(structured_output, BaseModel):
+        return structured_output.model_dump()
+
+    json_output = getattr(raw_output, "json_dict", None)
+    if isinstance(json_output, dict):
+        return json_output
+
     cleaned = str(raw_output).strip().replace("```json", "").replace("```", "")
     parsed = json.loads(cleaned.strip())
     if not isinstance(parsed, dict):

@@ -1,11 +1,24 @@
 from types import SimpleNamespace
 
 import pytest
+from crewai.crews.crew_output import CrewOutput
 
 import backend.pipeline as pipeline_module
 from backend.config import Settings
 from backend.models import DevelopmentPlan, RunAgent, RunStage, RunState, RunStatus
-from backend.pipeline import DevelopmentCrew
+from backend.pipeline import DevelopmentCrew, _parse_json
+
+
+def test_parse_json_uses_typed_crew_output() -> None:
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    output = CrewOutput(raw=plan.model_dump_json(), pydantic=plan)
+
+    assert _parse_json(output) == plan.model_dump()
 
 
 def test_complete_pipeline_instances_are_isolated() -> None:
