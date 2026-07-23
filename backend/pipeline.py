@@ -305,7 +305,15 @@ class DevelopmentCrew:
             )
             self._checkpoint()
             if file_to_fix == plan.test_file_name:
-                tester_task = next_task
+                self.state.workspace.write(
+                    plan.test_file_name,
+                    "# Previous generated tests were discarded after a test-owned failure.\n",
+                )
+                tester_task = (
+                    "Write a fresh test suite from the original user request and original "
+                    "testing plan. Do not preserve assertions or expected values from the "
+                    f"discarded suite. Root-cause guidance:\n{next_task}"
+                )
                 self._run_test_author(plan, tester_task)
             elif file_to_fix == plan.file_name:
                 developer_task = next_task

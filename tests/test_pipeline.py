@@ -231,7 +231,7 @@ def test_self_healing_routes_test_repairs_without_rewriting_candidate(
         tester_task="Test the solution.",
     )
     developer_tasks: list[str] = []
-    tester_tasks: list[str] = []
+    tester_tasks: list[tuple[str, str | None]] = []
     results = iter(
         [
             "TESTS FAILED:\nFAILURE CLASS: test",
@@ -247,7 +247,9 @@ def test_self_healing_routes_test_repairs_without_rewriting_candidate(
     monkeypatch.setattr(
         crew,
         "_run_test_author",
-        lambda _plan, task: tester_tasks.append(task),
+        lambda _plan, task: tester_tasks.append(
+            (task, crew.state.workspace.read(plan.test_file_name))
+        ),
     )
     monkeypatch.setattr(crew, "_run_tests", lambda _plan: next(results))
     monkeypatch.setattr(
@@ -260,9 +262,12 @@ def test_self_healing_routes_test_repairs_without_rewriting_candidate(
 
     assert result == "ALL TESTS PASSED"
     assert developer_tasks == ["Implement the solution."]
-    assert tester_tasks[0] == "Test the solution."
-    assert "Repair only the current test suite" in tester_tasks[1]
-    assert "FAILURE CLASS: test" in tester_tasks[1]
+    assert tester_tasks[0] == ("Test the solution.", None)
+    assert "Write a fresh test suite" in tester_tasks[1][0]
+    assert "FAILURE CLASS: test" in tester_tasks[1][0]
+    assert tester_tasks[1][1] == (
+        "# Previous generated tests were discarded after a test-owned failure.\n"
+    )
     assert crew.state.attempts == 2
     assert any(
         event.message == "The test suite is being repaired before the next attempt."

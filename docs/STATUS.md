@@ -110,6 +110,9 @@ accepted decisions. Day 7 deployment work has not started.
 - Added deterministic test-import normalization after Argus repeatedly preserved a placeholder
   module during repair. Imports of explicitly requested functions now target the planned
   application module before artifact validation, without changing test assertions.
+- Changed test-owned semantic repair to discard the invalid generated suite before asking Argus
+  for a fresh suite. This prevents incorrect expected values from anchoring subsequent repairs
+  while preserving the original request and typed testing plan as the source of truth.
 
 ## Verification performed
 
