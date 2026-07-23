@@ -26,6 +26,12 @@ def test_complete_pipeline_instances_are_isolated() -> None:
     assert all(agent.memory is None for agent in second.agents.values())
     assert all(agent.cache is False for agent in first.agents.values())
     assert all(agent.cache is False for agent in second.agents.values())
+    assert all(
+        getattr(agent.llm, "temperature", None) == 0 for agent in first.agents.values()
+    )
+    assert all(
+        getattr(agent.llm, "temperature", None) == 0 for agent in second.agents.values()
+    )
 
 
 def test_run_state_tracks_workflow_lifecycle_and_outputs() -> None:
@@ -104,21 +110,19 @@ def test_development_plan_rejects_unsafe_or_mismatched_paths(
         )
 
 
-def test_development_plan_normalizes_structured_agent_instructions() -> None:
-    plan = DevelopmentPlan.model_validate(
-        {
-            "file_name": "solution.py",
-            "test_file_name": "test_solution.py",
-            "developer_task": {
-                "function": "solve",
-                "steps": ["return the result"],
-            },
-            "tester_task": {"cases": ["empty input", "typical input"]},
-        }
-    )
-
-    assert '"function": "solve"' in plan.developer_task
-    assert '"cases"' in plan.tester_task
+def test_development_plan_rejects_structured_agent_instructions() -> None:
+    with pytest.raises(ValueError):
+        DevelopmentPlan.model_validate(
+            {
+                "file_name": "solution.py",
+                "test_file_name": "test_solution.py",
+                "developer_task": {
+                    "function": "solve",
+                    "steps": ["return the result"],
+                },
+                "tester_task": {"cases": ["empty input", "typical input"]},
+            }
+        )
 
 
 def test_self_healing_repairs_only_the_routed_file(

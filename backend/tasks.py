@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from crewai import Agent, Task
 from crewai.tools import BaseTool
 
+from .models import DevelopmentPlan
 from .sandbox_dependencies import SANDBOX_CAPABILITY_SUMMARY
 
 
@@ -55,9 +56,13 @@ def build_tasks(
             "from the brief. Do not rename a requested function or invent a different "
             "output schema. Do not add case-insensitive behavior or exact exception-message "
             "requirements unless the brief explicitly requires them. Do not return nested "
-            "objects or arrays for developer_task or tester_task. When wording such as "
-            "'normalize' is ambiguous, choose the narrowest behavior directly supported by "
-            "the brief and state it identically in both tasks. The offline sandbox provides "
+            "objects or arrays for developer_task or tester_task. Both tasks must be prose "
+            "instructions, not example input and output data. developer_task must state the "
+            "ordered implementation logic. tester_task must cover every explicit contrast in "
+            "the request, especially wording such as 'only', 'must remain', and 'ignore'. "
+            "When wording such as 'normalize' is ambiguous, choose the narrowest behavior "
+            "directly supported by the brief and state it identically in both tasks. The "
+            "offline sandbox provides "
             f"these pinned packages: {SANDBOX_CAPABILITY_SUMMARY}. Do not introduce an "
             "unrequested package. When the brief "
             "depends on a third-party API, use search_official_documentation before "
@@ -69,6 +74,7 @@ def build_tasks(
         ),
         agent=agents["lead"],
         tools=list(retrieval_tools),
+        output_pydantic=DevelopmentPlan,
     )
     develop = Task(
         description=(
@@ -109,8 +115,11 @@ def build_tasks(
             "behavior. Do not assert an exact exception message unless its text is explicitly "
             "required. Do not invent normalization, response bodies, or validation rules "
             "that are absent from the original plan. During repair, remove or correct assertions that encode unstated "
-            "requirements instead of preserving them. Before saving, verify that the test "
-            "file is complete, contains no Markdown fences, and is syntactically valid Python. "
+            "requirements instead of preserving them. Before every save, audit every expected "
+            "value and assertion against the original user request. Remove or correct any "
+            "assertion that cannot be tied to an explicit requirement, even when the current "
+            "repair instruction mentions a different defect. Before saving, verify that the "
+            "test file is complete, contains no Markdown fences, and is syntactically valid Python. "
             "The offline sandbox provides these pinned packages: "
             f"{SANDBOX_CAPABILITY_SUMMARY}. Do not import an unrequested dependency. Use "
             "save_file to save it to {test_file_name}."
@@ -145,7 +154,10 @@ def build_tasks(
             "a broken test import. If the application does not parse, repair the application "
             "first. If the application matches the original contract but the test imports "
             "a different symbol, asserts a different schema, assumes unstated case-insensitive "
-            "behavior, or requires an unspecified exception message, repair the tests. Use "
+            "behavior, or requires an unspecified exception message, repair the tests. For "
+            "assertion failures, compare the actual candidate output and the test's expected "
+            "output independently against the original request before routing. The generated "
+            "testing plan is never allowed to override the original request. Use "
             "search_official_documentation when the root cause depends on third-party API "
             "behavior."
         ),

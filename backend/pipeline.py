@@ -260,7 +260,9 @@ class DevelopmentCrew:
                 file_to_fix = plan.test_file_name
                 next_task = (
                     "Repair only the current test suite using this sanitized failure "
-                    f"evidence:\n{test_results}"
+                    "evidence. Re-audit every existing assertion against the original user "
+                    "request before saving; fix unsupported expectations even when they are "
+                    f"not named by this failure:\n{test_results}"
                 )
             elif (
                 failure_kind in {FailureKind.timeout, FailureKind.resource}

@@ -37,9 +37,9 @@ accepted decisions. Day 7 deployment work has not started.
 - Removed the Streamlit entry point and its direct runtime dependencies. Regenerated the
   Python lockfile while constraining unrelated transitive versions to the prior lock.
 - Live browser integration exposed that Athena can return structured JSON objects for
-  `developer_task` and `tester_task` even though the workflow model stores strings. Added
-  an explicit prompt constraint and deterministic object/list normalization so that valid
-  structured plans no longer terminate a run.
+  `developer_task` and `tester_task` even though the workflow contract requires prose.
+  Athena now uses typed output and nested plan instructions are rejected instead of being
+  normalized into misleading example data.
 - Clarified failed-run accounting after live browser testing: repeated sandbox
   infrastructure failures now end with an infrastructure-specific status message, and the
   frontend separates consumed candidate attempts from raw test execution records.
@@ -100,9 +100,17 @@ accepted decisions. Day 7 deployment work has not started.
   rather than embedding a replacement implementation.
 - Routed deterministic request-contract failures directly to Hephaestus and test-artifact
   failures directly to Argus, avoiding an unnecessary Athena diagnosis call.
+- Tightened plan and test reliability after a live feature-flag regression. Athena now emits
+  the typed `DevelopmentPlan` schema with prose implementation logic instead of nested example
+  data, all agents use temperature zero, and repaired test suites must re-audit every assertion
+  against the original request before execution.
 
 ## Verification performed
 
+- After the feature-flag reliability fix, `.venv/bin/pytest -q` passed with 86 tests
+  and five environment-dependent tests skipped. Ruff checks and formatting, mypy,
+  frontend lint and type-check, the production frontend build, and a local browser
+  smoke test also passed without submitting another paid model request.
 - `.venv/bin/pytest -q` passed with 86 tests and five environment-dependent tests skipped
   after the benchmark-driven orchestration fixes.
 - `ruff check backend benchmark rag tests`, `ruff format --check backend benchmark rag tests`,
