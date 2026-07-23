@@ -107,6 +107,9 @@ accepted decisions. Day 7 deployment work has not started.
 - Corrected the typed-plan integration after localhost verification exposed that CrewAI renders
   `CrewOutput.__str__()` as a Pydantic representation rather than JSON. The pipeline now reads
   typed `pydantic` and `json_dict` output directly before falling back to JSON text parsing.
+- Added deterministic test-import normalization after Argus repeatedly preserved a placeholder
+  module during repair. Imports of explicitly requested functions now target the planned
+  application module before artifact validation, without changing test assertions.
 
 ## Verification performed
 

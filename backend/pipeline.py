@@ -12,6 +12,7 @@ from rag.index import get_retriever
 
 from .agents import build_agents
 from .artifact_validation import (
+    normalize_test_imports,
     validate_application_artifact,
     validate_test_artifact,
 )
@@ -404,6 +405,12 @@ class DevelopmentCrew:
 
         test_code = self.state.workspace.read(plan.test_file_name)
         if test_code is not None:
+            normalized_test_code = normalize_test_imports(
+                plan.file_name, self.state.request, test_code
+            )
+            if normalized_test_code != test_code:
+                self.state.workspace.write(plan.test_file_name, normalized_test_code)
+                test_code = normalized_test_code
             test_error = validate_test_artifact(
                 plan.file_name, self.state.request, test_code
             )

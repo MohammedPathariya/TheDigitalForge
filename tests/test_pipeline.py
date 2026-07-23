@@ -73,6 +73,35 @@ def test_run_state_tracks_workflow_lifecycle_and_outputs() -> None:
     assert state.report == "Report"
 
 
+def test_run_tests_normalizes_explicit_function_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crew = DevelopmentCrew(
+        "Implement `solve(value)`.", Settings(openai_api_key="test-key")
+    )
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement solve.",
+        tester_task="Test solve.",
+    )
+    crew.state.workspace.write("solution.py", "def solve(value):\n    return value\n")
+    crew.state.workspace.write(
+        "test_solution.py",
+        "from your_module import solve\n\ndef test_solve():\n    assert solve(1) == 1\n",
+    )
+    monkeypatch.setattr(
+        crew,
+        "run_tests_tool",
+        SimpleNamespace(run=lambda **_kwargs: "ALL TESTS PASSED"),
+    )
+
+    assert crew._run_tests(plan) == "ALL TESTS PASSED"
+    assert crew.state.workspace.read("test_solution.py") == (
+        "from solution import solve\n\ndef test_solve():\n    assert solve(1) == 1\n"
+    )
+
+
 def test_pipeline_tracks_the_agent_currently_owning_the_work(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
