@@ -60,6 +60,10 @@ class TaskResult(BaseModel):
     output_tokens: int | None = None
     error: str | None = None
 
+    def write(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+
 
 class BenchmarkReport(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -74,6 +78,34 @@ class BenchmarkReport(BaseModel):
     completed_at: datetime
     tasks_passed: int = Field(ge=0)
     tasks_total: int = Field(ge=0)
+    results: tuple[TaskResult, ...]
+
+    def write(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+
+
+class BenchmarkInterruptedReport(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: str = "1.1.0"
+    artifact_type: str = "interrupted_benchmark_run"
+    run_id: str
+    benchmark_version: str
+    evaluator_sha256: str
+    model: str
+    sandbox_backend: str
+    started_at: datetime
+    interrupted_at: datetime
+    status: str
+    stop_reason: str
+    intended_tasks: int = Field(ge=0)
+    completed_tasks: int = Field(ge=0)
+    tasks_passed: int = Field(ge=0)
+    tasks_total: int = Field(ge=0)
+    aggregate_score_available: bool = False
+    max_consecutive_failures: int | None = Field(default=None, ge=1)
+    finish_remaining_threshold: int = Field(ge=0)
     results: tuple[TaskResult, ...]
 
     def write(self, path: Path) -> None:

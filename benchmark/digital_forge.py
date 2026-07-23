@@ -1,6 +1,7 @@
 """Digital Forge adapter for the algorithm benchmark."""
 
 import argparse
+import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -65,7 +66,26 @@ def main(argv: Sequence[str] | None = None) -> None:
         default="digital-forge-sandbox",
         help="Modal app used when --sandbox=modal",
     )
+    parser.add_argument(
+        "--max-consecutive-failures",
+        type=int,
+        default=None,
+        help="Stop early after this many consecutive failures (default: disabled)",
+    )
+    parser.add_argument(
+        "--finish-remaining-threshold",
+        type=int,
+        default=3,
+        help="Ignore the failure guard when this many or fewer tasks remain",
+    )
     args = parser.parse_args(argv)
+
+    runtime_directory = (args.output / ".runtime").resolve()
+    runtime_directory.mkdir(parents=True, exist_ok=True)
+    crewai_storage_directory = runtime_directory / "crewai"
+    crewai_storage_directory.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("CREWAI_STORAGE_DIR", str(crewai_storage_directory))
+    os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 
     base_settings = Settings()
     model_name = args.model or base_settings.openai_model_name
@@ -88,6 +108,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         label,
         args.output,
         sandbox_runner,
+        max_consecutive_failures=args.max_consecutive_failures,
+        finish_remaining_threshold=args.finish_remaining_threshold,
     ).run(tasks)
     print(report.model_dump_json(indent=2))
 

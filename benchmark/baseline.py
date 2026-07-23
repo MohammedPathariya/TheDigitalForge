@@ -20,6 +20,7 @@ from .catalog import BENCHMARK_VERSION, get_task, load_tasks
 from .evaluator import evaluate_candidate
 from .hidden_cases import evaluator_sha256
 from .models import (
+    BenchmarkInterruptedReport,
     BenchmarkReport,
     BenchmarkTask,
     GeneratedSolution,
@@ -73,20 +74,72 @@ class ZeroShotBaselineRunner:
         model: str,
         output_root: Path,
         sandbox_runner: SandboxRunner | None = None,
+        max_consecutive_failures: int | None = None,
+        finish_remaining_threshold: int = 3,
     ):
         self.generator = generator
         self.model = model
         self.output_root = output_root
         self.sandbox_runner = sandbox_runner or DockerSandboxRunner()
+        self.max_consecutive_failures = max_consecutive_failures
+        self.finish_remaining_threshold = finish_remaining_threshold
 
-    def run(self, tasks: Sequence[BenchmarkTask] | None = None) -> BenchmarkReport:
+    def run(
+        self, tasks: Sequence[BenchmarkTask] | None = None
+    ) -> BenchmarkReport | BenchmarkInterruptedReport:
         selected = tuple(tasks or load_tasks())
         run_id = uuid4().hex
         run_directory = self.output_root / run_id
         candidates_directory = run_directory / "candidates"
+        checkpoints_directory = run_directory / "checkpoints"
         candidates_directory.mkdir(parents=True, exist_ok=False)
+        checkpoints_directory.mkdir(parents=True, exist_ok=False)
         started_at = utc_now()
-        results = tuple(self._run_task(task, candidates_directory) for task in selected)
+        results: list[TaskResult] = []
+        consecutive_failures = 0
+        stop_reason: str | None = None
+
+        for index, task in enumerate(selected):
+            result = self._run_task(task, candidates_directory)
+            results.append(result)
+            result.write(checkpoints_directory / f"{task.id}.json")
+
+            consecutive_failures = 0 if result.passed else consecutive_failures + 1
+            remaining = len(selected) - index - 1
+            if (
+                self.max_consecutive_failures is not None
+                and consecutive_failures >= self.max_consecutive_failures
+                and remaining > self.finish_remaining_threshold
+            ):
+                stop_reason = (
+                    f"stopped after {consecutive_failures} consecutive failures "
+                    f"with {remaining} tasks remaining"
+                )
+                break
+
+        if stop_reason is not None:
+            interrupted = BenchmarkInterruptedReport(
+                benchmark_version=BENCHMARK_VERSION,
+                evaluator_sha256=evaluator_sha256(),
+                run_id=run_id,
+                model=self.model,
+                sandbox_backend=self.sandbox_runner.name,
+                started_at=started_at,
+                interrupted_at=utc_now(),
+                status="stopped_by_guardrail",
+                stop_reason=stop_reason,
+                intended_tasks=len(selected),
+                completed_tasks=len(results),
+                tasks_passed=sum(result.passed for result in results),
+                tasks_total=len(results),
+                max_consecutive_failures=self.max_consecutive_failures,
+                finish_remaining_threshold=self.finish_remaining_threshold,
+                results=tuple(results),
+            )
+            interrupted.write(run_directory / "interrupted.json")
+            return interrupted
+
+        result_tuple = tuple(results)
         report = BenchmarkReport(
             benchmark_version=BENCHMARK_VERSION,
             evaluator_sha256=evaluator_sha256(),
@@ -95,9 +148,9 @@ class ZeroShotBaselineRunner:
             sandbox_backend=self.sandbox_runner.name,
             started_at=started_at,
             completed_at=utc_now(),
-            tasks_passed=sum(result.passed for result in results),
-            tasks_total=len(results),
-            results=results,
+            tasks_passed=sum(result.passed for result in result_tuple),
+            tasks_total=len(result_tuple),
+            results=result_tuple,
         )
         report.write(run_directory / "report.json")
         return report
@@ -164,6 +217,18 @@ def main(argv: Sequence[str] | None = None) -> None:
         default="digital-forge-sandbox",
         help="Modal app used when --sandbox=modal",
     )
+    parser.add_argument(
+        "--max-consecutive-failures",
+        type=int,
+        default=None,
+        help="Stop early after this many consecutive failures (default: disabled)",
+    )
+    parser.add_argument(
+        "--finish-remaining-threshold",
+        type=int,
+        default=3,
+        help="Ignore the failure guard when this many or fewer tasks remain",
+    )
     args = parser.parse_args(argv)
     tasks = [get_task(task_id) for task_id in args.task_ids] if args.task_ids else None
     sandbox_runner: SandboxRunner = (
@@ -172,7 +237,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         else DockerSandboxRunner()
     )
     report = ZeroShotBaselineRunner(
-        OpenAISolutionGenerator(), args.model, args.output, sandbox_runner
+        OpenAISolutionGenerator(),
+        args.model,
+        args.output,
+        sandbox_runner,
+        max_consecutive_failures=args.max_consecutive_failures,
+        finish_remaining_threshold=args.finish_remaining_threshold,
     ).run(tasks)
     print(report.model_dump_json(indent=2))
 

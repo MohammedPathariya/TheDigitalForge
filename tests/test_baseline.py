@@ -6,7 +6,11 @@ from backend.sandbox import SandboxRequest, SandboxResult
 from benchmark.baseline import SolutionGenerator, ZeroShotBaselineRunner, _extract_code
 from benchmark.catalog import get_task
 from benchmark.hidden_cases import HIDDEN_CASES, to_jsonable
-from benchmark.models import BenchmarkTask, GeneratedSolution
+from benchmark.models import (
+    BenchmarkInterruptedReport,
+    BenchmarkTask,
+    GeneratedSolution,
+)
 
 
 class RecordingGenerator(SolutionGenerator):
@@ -42,6 +46,25 @@ class PassingSandboxRunner:
         )
 
 
+class FailingSandboxRunner:
+    name = "stub"
+
+    def run(self, request: SandboxRequest) -> SandboxResult:
+        case_count = len(json.loads(request.stdin))
+        results = [
+            {
+                "value": None,
+                "error_type": "AssertionError",
+            }
+            for _ in range(case_count)
+        ]
+        return SandboxResult(
+            stdout=json.dumps({"results": results, "import_error": None}),
+            exit_code=0,
+            duration_seconds=0.01,
+        )
+
+
 def test_zero_shot_runner_writes_structured_artifacts_without_exposing_cases(
     tmp_path: Path,
 ) -> None:
@@ -54,14 +77,81 @@ def test_zero_shot_runner_writes_structured_artifacts_without_exposing_cases(
 
     report_path = tmp_path / report.run_id / "report.json"
     artifact = json.loads(report_path.read_text(encoding="utf-8"))
+    checkpoint_path = tmp_path / report.run_id / "checkpoints" / f"{task.id}.json"
+    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+
     assert report.tasks_passed == 1
     assert artifact["schema_version"] == "1.1.0"
     assert artifact["benchmark_version"] == "1.1.0"
     assert artifact["model"] == "test-model"
     assert artifact["sandbox_backend"] == "stub"
     assert artifact["results"][0]["response_id"] == "response-test"
+    assert checkpoint["task_id"] == task.id
+    assert checkpoint["passed"] is True
     assert generator.received_prompts == [task.prompt]
     assert "same" not in generator.received_prompts[0]
+
+
+def test_zero_shot_runner_writes_interrupted_artifact_after_failure_guard(
+    tmp_path: Path,
+) -> None:
+    generator = RecordingGenerator()
+    tasks = [
+        get_task("forge_easy_01"),
+        get_task("forge_easy_02"),
+        get_task("forge_easy_03"),
+        get_task("forge_easy_04"),
+        get_task("forge_easy_05"),
+    ]
+
+    report = ZeroShotBaselineRunner(
+        generator,
+        "test-model",
+        tmp_path,
+        FailingSandboxRunner(),
+        max_consecutive_failures=3,
+        finish_remaining_threshold=1,
+    ).run(tasks)
+
+    assert isinstance(report, BenchmarkInterruptedReport)
+    assert report.status == "stopped_by_guardrail"
+    assert report.completed_tasks == 3
+    assert report.tasks_total == 3
+    assert report.tasks_passed == 0
+    assert "3 consecutive failures" in report.stop_reason
+    assert (tmp_path / report.run_id / "interrupted.json").is_file()
+    assert not (tmp_path / report.run_id / "report.json").exists()
+    assert (tmp_path / report.run_id / "checkpoints" / "forge_easy_03.json").is_file()
+    assert generator.received_prompts == [task.prompt for task in tasks[:3]]
+
+
+def test_zero_shot_runner_finishes_when_failure_guard_trips_near_end(
+    tmp_path: Path,
+) -> None:
+    generator = RecordingGenerator()
+    tasks = [
+        get_task("forge_easy_01"),
+        get_task("forge_easy_02"),
+        get_task("forge_easy_03"),
+        get_task("forge_easy_04"),
+    ]
+
+    report = ZeroShotBaselineRunner(
+        generator,
+        "test-model",
+        tmp_path,
+        FailingSandboxRunner(),
+        max_consecutive_failures=3,
+        finish_remaining_threshold=1,
+    ).run(tasks)
+
+    assert not isinstance(report, BenchmarkInterruptedReport)
+    assert report.tasks_total == 4
+    assert report.tasks_passed == 0
+    assert (tmp_path / report.run_id / "report.json").is_file()
+    assert not (tmp_path / report.run_id / "interrupted.json").exists()
+    assert (tmp_path / report.run_id / "checkpoints" / "forge_easy_04.json").is_file()
+    assert generator.received_prompts == [task.prompt for task in tasks]
 
 
 def test_extract_code_accepts_plain_or_fenced_python() -> None:

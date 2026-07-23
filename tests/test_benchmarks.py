@@ -21,6 +21,22 @@ def _write_report(root: Path, run_id: str, benchmark_version: str) -> None:
     report.write(root / run_id / "report.json")
 
 
+def _write_model_report(root: Path, run_id: str, model: str) -> None:
+    report = BenchmarkReport(
+        benchmark_version=BENCHMARK_VERSION,
+        evaluator_sha256="0" * 64,
+        run_id=run_id,
+        model=model,
+        sandbox_backend="stub",
+        started_at=utc_now(),
+        completed_at=utc_now(),
+        tasks_passed=0,
+        tasks_total=0,
+        results=(),
+    )
+    report.write(root / run_id / "report.json")
+
+
 def test_load_benchmark_reports_filters_obsolete_versions(tmp_path: Path) -> None:
     _write_report(tmp_path, "old-run", "1.0.0")
     _write_report(tmp_path, "current-run", BENCHMARK_VERSION)
@@ -28,3 +44,17 @@ def test_load_benchmark_reports_filters_obsolete_versions(tmp_path: Path) -> Non
     reports = load_benchmark_reports(tmp_path)
 
     assert [report.run_id for report in reports] == ["current-run"]
+
+
+def test_load_benchmark_reports_prefers_digital_forge_report(
+    tmp_path: Path,
+) -> None:
+    _write_model_report(tmp_path, "digital-forge-run", "digital-forge:gpt-4o-mini")
+    _write_model_report(tmp_path, "baseline-run", "gpt-4o-mini")
+
+    reports = load_benchmark_reports(tmp_path)
+
+    assert [report.run_id for report in reports] == [
+        "digital-forge-run",
+        "baseline-run",
+    ]

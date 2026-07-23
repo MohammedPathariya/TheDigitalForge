@@ -19,4 +19,12 @@ def load_benchmark_reports(root: Path) -> tuple[BenchmarkReport, ...]:
         ).benchmark_version
         == BENCHMARK_VERSION
     ]
-    return tuple(sorted(reports, key=lambda report: report.completed_at, reverse=True))
+    return tuple(
+        sorted(
+            reports,
+            key=lambda report: (
+                not report.model.startswith("digital-forge:"),
+                -report.completed_at.timestamp(),
+            ),
+        )
+    )
