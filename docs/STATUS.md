@@ -116,6 +116,11 @@ accepted decisions. Day 7 deployment work has not started.
 
 ## Verification performed
 
+- Paid localhost verification on 2026-07-22 confirmed one valid repaired pass and one false
+  positive. Feature-flag run `a1f3db16` corrected an invalid generated expectation and passed
+  on attempt two. Normalization run `4a93f7cd` reported success on attempt three, but its final
+  code violated the original display-name fallback and active-string normalization rules, so it
+  must not be counted as a successful run. Further paid prompts were stopped.
 - After the feature-flag reliability fix, `.venv/bin/pytest -q` passed with 86 tests
   and five environment-dependent tests skipped. Ruff checks and formatting, mypy,
   frontend lint and type-check, the production frontend build, and a local browser
@@ -227,6 +232,10 @@ accepted decisions. Day 7 deployment work has not started.
 - Agent-generated code can still fail after repair despite stronger contracts because live
   model output is nondeterministic. Such runs remain correctly marked failed and should be
   retained as quality evidence rather than counted as successful executions.
+- Generated tests can still create a false positive by asserting behavior that contradicts the
+  original request and then driving application repair toward those assertions. A terminal
+  `ALL TESTS PASSED` result is not trustworthy until an independent final contract audit compares
+  the resulting application directly with the immutable user request.
 - FastAPI, CrewAI, Starlette, and OpenTelemetry continue to emit upstream deprecation
   warnings during the Python test suite.
 
@@ -239,7 +248,7 @@ by displaying only precomputed, measured artifacts and never triggering or inven
 
 ## Exact next task
 
-Finish the benchmark safety controls before more paid evaluation: checkpoint each task, add
-resume support and per-call usage/cost telemetry, enforce model spending limits, and then run
-a three-task pilot. Do not run another full Digital Forge benchmark or update resume and
-LinkedIn comparison claims until that pilot is reviewed.
+Add an independent final contract audit that cannot treat generated tests as the source of truth.
+It must compare the final application directly with the immutable request and block a successful
+status when repaired code drops or contradicts a requirement. Then finish benchmark checkpointing,
+usage telemetry, and spending limits before another paid pilot or any resume claim update.
