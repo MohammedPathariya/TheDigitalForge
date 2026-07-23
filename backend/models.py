@@ -1,11 +1,10 @@
 """Typed API and workflow models."""
 
-import json
 from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from rag.models import RetrievalEvent
 
@@ -96,13 +95,6 @@ class DevelopmentPlan(BaseModel):
     test_file_name: str = Field(pattern=r"^test_[a-z][a-z0-9_]*\.py$")
     developer_task: str = Field(min_length=1)
     tester_task: str = Field(min_length=1)
-
-    @field_validator("developer_task", "tester_task", mode="before")
-    @classmethod
-    def normalize_structured_instructions(cls, value: object) -> object:
-        if isinstance(value, (dict, list)):
-            return json.dumps(value, indent=2)
-        return value
 
     @model_validator(mode="after")
     def validate_matching_file_names(self) -> "DevelopmentPlan":

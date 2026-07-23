@@ -6,11 +6,13 @@ from collections.abc import Callable
 from uuid import UUID
 
 from crewai import Agent, Crew
+from pydantic import BaseModel
 
 from rag.index import get_retriever
 
 from .agents import build_agents
 from .artifact_validation import (
+    normalize_test_imports,
     validate_application_artifact,
     validate_test_artifact,
 )
@@ -41,6 +43,14 @@ INFRASTRUCTURE_CONFIGURATION_MARKER = "SANDBOX CONFIGURATION FAILURE"
 
 
 def _parse_json(raw_output: object) -> dict[str, object]:
+    structured_output = getattr(raw_output, "pydantic", None)
+    if isinstance(structured_output, BaseModel):
+        return structured_output.model_dump()
+
+    json_output = getattr(raw_output, "json_dict", None)
+    if isinstance(json_output, dict):
+        return json_output
+
     cleaned = str(raw_output).strip().replace("```json", "").replace("```", "")
     parsed = json.loads(cleaned.strip())
     if not isinstance(parsed, dict):
@@ -260,7 +270,9 @@ class DevelopmentCrew:
                 file_to_fix = plan.test_file_name
                 next_task = (
                     "Repair only the current test suite using this sanitized failure "
-                    f"evidence:\n{test_results}"
+                    "evidence. Re-audit every existing assertion against the original user "
+                    "request before saving; fix unsupported expectations even when they are "
+                    f"not named by this failure:\n{test_results}"
                 )
             elif (
                 failure_kind in {FailureKind.timeout, FailureKind.resource}
@@ -293,7 +305,15 @@ class DevelopmentCrew:
             )
             self._checkpoint()
             if file_to_fix == plan.test_file_name:
-                tester_task = next_task
+                self.state.workspace.write(
+                    plan.test_file_name,
+                    "# Previous generated tests were discarded after a test-owned failure.\n",
+                )
+                tester_task = (
+                    "Write a fresh test suite from the original user request and original "
+                    "testing plan. Do not preserve assertions or expected values from the "
+                    f"discarded suite. Root-cause guidance:\n{next_task}"
+                )
                 self._run_test_author(plan, tester_task)
             elif file_to_fix == plan.file_name:
                 developer_task = next_task
@@ -393,6 +413,12 @@ class DevelopmentCrew:
 
         test_code = self.state.workspace.read(plan.test_file_name)
         if test_code is not None:
+            normalized_test_code = normalize_test_imports(
+                plan.file_name, self.state.request, test_code
+            )
+            if normalized_test_code != test_code:
+                self.state.workspace.write(plan.test_file_name, normalized_test_code)
+                test_code = normalized_test_code
             test_error = validate_test_artifact(
                 plan.file_name, self.state.request, test_code
             )

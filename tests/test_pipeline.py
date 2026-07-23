@@ -1,11 +1,24 @@
 from types import SimpleNamespace
 
 import pytest
+from crewai.crews.crew_output import CrewOutput
 
 import backend.pipeline as pipeline_module
 from backend.config import Settings
 from backend.models import DevelopmentPlan, RunAgent, RunStage, RunState, RunStatus
-from backend.pipeline import DevelopmentCrew
+from backend.pipeline import DevelopmentCrew, _parse_json
+
+
+def test_parse_json_uses_typed_crew_output() -> None:
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement the solution.",
+        tester_task="Test the solution.",
+    )
+    output = CrewOutput(raw=plan.model_dump_json(), pydantic=plan)
+
+    assert _parse_json(output) == plan.model_dump()
 
 
 def test_complete_pipeline_instances_are_isolated() -> None:
@@ -26,6 +39,12 @@ def test_complete_pipeline_instances_are_isolated() -> None:
     assert all(agent.memory is None for agent in second.agents.values())
     assert all(agent.cache is False for agent in first.agents.values())
     assert all(agent.cache is False for agent in second.agents.values())
+    assert all(
+        getattr(agent.llm, "temperature", None) == 0 for agent in first.agents.values()
+    )
+    assert all(
+        getattr(agent.llm, "temperature", None) == 0 for agent in second.agents.values()
+    )
 
 
 def test_run_state_tracks_workflow_lifecycle_and_outputs() -> None:
@@ -52,6 +71,35 @@ def test_run_state_tracks_workflow_lifecycle_and_outputs() -> None:
     assert state.plan == plan
     assert state.test_results == "ALL TESTS PASSED"
     assert state.report == "Report"
+
+
+def test_run_tests_normalizes_explicit_function_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crew = DevelopmentCrew(
+        "Implement `solve(value)`.", Settings(openai_api_key="test-key")
+    )
+    plan = DevelopmentPlan(
+        file_name="solution.py",
+        test_file_name="test_solution.py",
+        developer_task="Implement solve.",
+        tester_task="Test solve.",
+    )
+    crew.state.workspace.write("solution.py", "def solve(value):\n    return value\n")
+    crew.state.workspace.write(
+        "test_solution.py",
+        "from your_module import solve\n\ndef test_solve():\n    assert solve(1) == 1\n",
+    )
+    monkeypatch.setattr(
+        crew,
+        "run_tests_tool",
+        SimpleNamespace(run=lambda **_kwargs: "ALL TESTS PASSED"),
+    )
+
+    assert crew._run_tests(plan) == "ALL TESTS PASSED"
+    assert crew.state.workspace.read("test_solution.py") == (
+        "from solution import solve\n\ndef test_solve():\n    assert solve(1) == 1\n"
+    )
 
 
 def test_pipeline_tracks_the_agent_currently_owning_the_work(
@@ -104,21 +152,19 @@ def test_development_plan_rejects_unsafe_or_mismatched_paths(
         )
 
 
-def test_development_plan_normalizes_structured_agent_instructions() -> None:
-    plan = DevelopmentPlan.model_validate(
-        {
-            "file_name": "solution.py",
-            "test_file_name": "test_solution.py",
-            "developer_task": {
-                "function": "solve",
-                "steps": ["return the result"],
-            },
-            "tester_task": {"cases": ["empty input", "typical input"]},
-        }
-    )
-
-    assert '"function": "solve"' in plan.developer_task
-    assert '"cases"' in plan.tester_task
+def test_development_plan_rejects_structured_agent_instructions() -> None:
+    with pytest.raises(ValueError):
+        DevelopmentPlan.model_validate(
+            {
+                "file_name": "solution.py",
+                "test_file_name": "test_solution.py",
+                "developer_task": {
+                    "function": "solve",
+                    "steps": ["return the result"],
+                },
+                "tester_task": {"cases": ["empty input", "typical input"]},
+            }
+        )
 
 
 def test_self_healing_repairs_only_the_routed_file(
@@ -185,7 +231,7 @@ def test_self_healing_routes_test_repairs_without_rewriting_candidate(
         tester_task="Test the solution.",
     )
     developer_tasks: list[str] = []
-    tester_tasks: list[str] = []
+    tester_tasks: list[tuple[str, str | None]] = []
     results = iter(
         [
             "TESTS FAILED:\nFAILURE CLASS: test",
@@ -201,7 +247,9 @@ def test_self_healing_routes_test_repairs_without_rewriting_candidate(
     monkeypatch.setattr(
         crew,
         "_run_test_author",
-        lambda _plan, task: tester_tasks.append(task),
+        lambda _plan, task: tester_tasks.append(
+            (task, crew.state.workspace.read(plan.test_file_name))
+        ),
     )
     monkeypatch.setattr(crew, "_run_tests", lambda _plan: next(results))
     monkeypatch.setattr(
@@ -214,9 +262,12 @@ def test_self_healing_routes_test_repairs_without_rewriting_candidate(
 
     assert result == "ALL TESTS PASSED"
     assert developer_tasks == ["Implement the solution."]
-    assert tester_tasks[0] == "Test the solution."
-    assert "Repair only the current test suite" in tester_tasks[1]
-    assert "FAILURE CLASS: test" in tester_tasks[1]
+    assert tester_tasks[0] == ("Test the solution.", None)
+    assert "Write a fresh test suite" in tester_tasks[1][0]
+    assert "FAILURE CLASS: test" in tester_tasks[1][0]
+    assert tester_tasks[1][1] == (
+        "# Previous generated tests were discarded after a test-owned failure.\n"
+    )
     assert crew.state.attempts == 2
     assert any(
         event.message == "The test suite is being repaired before the next attempt."

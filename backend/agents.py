@@ -1,6 +1,6 @@
 """Per-run CrewAI agent construction."""
 
-from crewai import Agent
+from crewai import LLM, Agent
 
 
 def build_agents(model_name: str = "gpt-4o-mini") -> dict[str, Agent]:
@@ -22,7 +22,7 @@ def build_agents(model_name: str = "gpt-4o-mini") -> dict[str, Agent]:
         allow_delegation=False,
         cache=False,
         memory=False,
-        llm=model_name,
+        llm=LLM(model=model_name, temperature=0),
     )
     athena = Agent(
         name="Athena",
@@ -40,7 +40,7 @@ def build_agents(model_name: str = "gpt-4o-mini") -> dict[str, Agent]:
         allow_delegation=False,
         cache=False,
         memory=False,
-        llm=model_name,
+        llm=LLM(model=model_name, temperature=0),
     )
     hephaestus = Agent(
         name="Hephaestus",
@@ -58,7 +58,7 @@ def build_agents(model_name: str = "gpt-4o-mini") -> dict[str, Agent]:
         allow_delegation=False,
         cache=False,
         memory=False,
-        llm=model_name,
+        llm=LLM(model=model_name, temperature=0),
     )
     argus = Agent(
         name="Argus",
@@ -76,7 +76,7 @@ def build_agents(model_name: str = "gpt-4o-mini") -> dict[str, Agent]:
         allow_delegation=False,
         cache=False,
         memory=False,
-        llm=model_name,
+        llm=LLM(model=model_name, temperature=0),
     )
     return {
         "liaison": janus,

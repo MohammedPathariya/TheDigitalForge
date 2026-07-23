@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from crewai import Agent, Task
 from crewai.tools import BaseTool
 
+from .models import DevelopmentPlan
 from .sandbox_dependencies import SANDBOX_CAPABILITY_SUMMARY
 
 
@@ -48,16 +49,21 @@ def build_tasks(
             "{technical_brief}\n'''\n\nReturn one valid JSON object with four keys: "
             "'file_name' for a PEP 8 Python filename, 'test_file_name' for its pytest "
             "suite, 'developer_task' as one JSON string with precise functions, inputs, "
-            "outputs, and logic, and 'tester_task' as one JSON string with the test "
-            "strategy and specific cases. The developer_task and tester_task must use the "
-            "same exact public class and function names, file names, return keys, and "
-            "edge-case behavior "
-            "from the brief. Do not rename a requested function or invent a different "
+            "outputs, and logic, and 'tester_task' as one JSON string describing exactly "
+            "one representative happy-path case. The developer_task and tester_task must use the "
+            "same exact public class and function names, file names, return keys, and main "
+            "happy-path behavior from the brief. Do not rename a requested function or invent a different "
             "output schema. Do not add case-insensitive behavior or exact exception-message "
             "requirements unless the brief explicitly requires them. Do not return nested "
-            "objects or arrays for developer_task or tester_task. When wording such as "
-            "'normalize' is ambiguous, choose the narrowest behavior directly supported by "
-            "the brief and state it identically in both tasks. The offline sandbox provides "
+            "objects or arrays for developer_task or tester_task. Both tasks must be prose "
+            "instructions, not example input and output data. developer_task must state the "
+            "ordered implementation logic. tester_task must use ordinary valid inputs and "
+            "verify only the main requested operation and expected output. Do not include "
+            "malformed, missing, invalid, duplicate, boundary, ordering, mutation, exception, "
+            "or type-subtlety cases in tester_task. "
+            "When wording such as 'normalize' is ambiguous, choose the narrowest behavior "
+            "directly supported by the brief and state it identically in both tasks. The "
+            "offline sandbox provides "
             f"these pinned packages: {SANDBOX_CAPABILITY_SUMMARY}. Do not introduce an "
             "unrequested package. When the brief "
             "depends on a third-party API, use search_official_documentation before "
@@ -69,6 +75,7 @@ def build_tasks(
         ),
         agent=agents["lead"],
         tools=list(retrieval_tools),
+        output_pydantic=DevelopmentPlan,
     )
     develop = Task(
         description=(
@@ -94,23 +101,31 @@ def build_tasks(
     )
     test_suite = Task(
         description=(
-            "Implement the current testing instruction while preserving the original test "
-            "plan. Assertions must check exact expected outcomes. If current tests are "
-            "present, repair only those tests and preserve unaffected coverage. The original "
+            "Generate exactly one pytest test function covering one representative happy "
+            "path with ordinary valid inputs. The test must verify only the main requested "
+            "operation and its expected output. Do not generate malformed, missing, invalid, "
+            "duplicate, boundary, ordering, mutation, exception, or type-subtlety cases. "
+            "If current tests are present, replace them as needed so the suite still contains "
+            "exactly one happy-path test. The original "
             "user request is the immutable source of truth.\n\nOriginal User Request:\n'''\n"
             "{user_request}\n'''\n\nOriginal "
             "Testing Plan:\n'''\n{original_tester_task}\n'''\n\nCurrent Testing "
             "Instruction:\n'''\n{tester_task}\n'''\n\nCurrent Tests:\n'''\n"
             "{current_tests}\n'''\n\nUse the exact application file name, public class and function names, return keys, and "
-            "edge-case behavior from the original testing plan. Import the requested "
+            "main happy-path behavior from the original testing plan. Import the requested "
             "symbol from the requested application module; never substitute a similar "
             "function name or invent a different output schema. Treat strings and identifiers "
             "as case-sensitive unless the original plan explicitly requires case-insensitive "
             "behavior. Do not assert an exact exception message unless its text is explicitly "
             "required. Do not invent normalization, response bodies, or validation rules "
             "that are absent from the original plan. During repair, remove or correct assertions that encode unstated "
-            "requirements instead of preserving them. Before saving, verify that the test "
-            "file is complete, contains no Markdown fences, and is syntactically valid Python. "
+            "requirements instead of preserving them. Before every save, audit every expected "
+            "value and assertion against the original user request. Remove or correct any "
+            "assertion that cannot be tied to an explicit requirement, even when the current "
+            "repair instruction mentions a different defect. If the current tests say they "
+            "were discarded, rebuild the suite from the original request instead of restoring "
+            "prior assertions. Before saving, verify that the test file is complete, contains "
+            "no Markdown fences, and is syntactically valid Python. "
             "The offline sandbox provides these pinned packages: "
             f"{SANDBOX_CAPABILITY_SUMMARY}. Do not import an unrequested dependency. Use "
             "save_file to save it to {test_file_name}."
@@ -145,7 +160,10 @@ def build_tasks(
             "a broken test import. If the application does not parse, repair the application "
             "first. If the application matches the original contract but the test imports "
             "a different symbol, asserts a different schema, assumes unstated case-insensitive "
-            "behavior, or requires an unspecified exception message, repair the tests. Use "
+            "behavior, or requires an unspecified exception message, repair the tests. For "
+            "assertion failures, compare the actual candidate output and the test's expected "
+            "output independently against the original request before routing. The generated "
+            "testing plan is never allowed to override the original request. Use "
             "search_official_documentation when the root cause depends on third-party API "
             "behavior."
         ),
