@@ -23,3 +23,19 @@ def test_sandbox_limits_are_typed_and_bounded() -> None:
     assert settings.sandbox_memory_mib == 512
     with pytest.raises(ValueError):
         Settings(sandbox_process_limit=2)
+
+
+def test_public_demo_controls_are_typed_and_bounded() -> None:
+    settings = Settings(
+        max_daily_model_runs=5,
+        rate_limit_requests=3,
+        rate_limit_window_seconds=30,
+        run_timeout_seconds=120,
+    )
+
+    assert settings.max_active_runs == 1
+    assert settings.max_daily_model_runs == 5
+    with pytest.raises(ValueError):
+        Settings(max_active_runs=2)
+    with pytest.raises(ValueError):
+        Settings(run_timeout_seconds=0)

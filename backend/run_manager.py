@@ -1,7 +1,8 @@
 """Thread-safe in-memory run coordination for the polling API."""
 
 from collections.abc import Callable
-from threading import Event, RLock, Thread
+from datetime import date
+from threading import Event, RLock, Thread, Timer
 from typing import Protocol
 from uuid import UUID, uuid4
 
@@ -30,6 +31,14 @@ RunnerFactory = Callable[
 ]
 
 
+class ActiveRunLimitExceeded(Exception):
+    """Raised when the public demo already has a run in progress."""
+
+
+class DailyRunLimitExceeded(Exception):
+    """Raised when process-local model-backed run budget is exhausted."""
+
+
 class RunManager:
     """Own process-local run snapshots and execute pipelines in worker threads."""
 
@@ -38,6 +47,9 @@ class RunManager:
         self.runner_factory = runner_factory
         self._runs: dict[UUID, RunSnapshot] = {}
         self._cancellations: dict[UUID, Event] = {}
+        self._external_active_runs = 0
+        self._daily_run_count = 0
+        self._daily_run_date = date.today()
         self._lock = RLock()
 
     def start(self, request: str) -> RunSnapshot:
@@ -56,6 +68,7 @@ class RunManager:
         )
         cancellation = Event()
         with self._lock:
+            self._reserve_run_locked()
             self._runs[run_id] = snapshot
             self._cancellations[run_id] = cancellation
         Thread(
@@ -65,6 +78,15 @@ class RunManager:
             daemon=True,
         ).start()
         return snapshot.model_copy(deep=True)
+
+    def reserve_external_run(self) -> None:
+        with self._lock:
+            self._reserve_run_locked()
+            self._external_active_runs += 1
+
+    def release_external_run(self) -> None:
+        with self._lock:
+            self._external_active_runs = max(0, self._external_active_runs - 1)
 
     def get(self, run_id: UUID) -> RunSnapshot | None:
         with self._lock:
@@ -90,6 +112,9 @@ class RunManager:
             return snapshot.model_copy(deep=True)
 
     def _execute(self, run_id: UUID, request: str, cancellation: Event) -> None:
+        timer = Timer(self.settings.run_timeout_seconds, cancellation.set)
+        timer.daemon = True
+        timer.start()
         try:
             runner = self.runner_factory(
                 request,
@@ -133,6 +158,8 @@ class RunManager:
                         ),
                     }
                 )
+        finally:
+            timer.cancel()
 
     def _update(self, run_id: UUID, state: RunState) -> None:
         artifacts: list[RunArtifact] = []
@@ -174,3 +201,22 @@ class RunManager:
                     "updated_at": utc_now(),
                 }
             )
+
+    def _reset_daily_count_if_needed(self) -> None:
+        today = date.today()
+        if today != self._daily_run_date:
+            self._daily_run_date = today
+            self._daily_run_count = 0
+
+    def _reserve_run_locked(self) -> None:
+        self._reset_daily_count_if_needed()
+        active_runs = self._external_active_runs + sum(
+            1
+            for existing in self._runs.values()
+            if existing.status in {RunStatus.pending, RunStatus.running}
+        )
+        if active_runs >= self.settings.max_active_runs:
+            raise ActiveRunLimitExceeded
+        if self._daily_run_count >= self.settings.max_daily_model_runs:
+            raise DailyRunLimitExceeded
+        self._daily_run_count += 1

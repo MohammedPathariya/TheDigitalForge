@@ -111,6 +111,15 @@ npm run dev
 
 The frontend defaults to `http://localhost:3000` and calls the backend at `http://localhost:8000`. Override that with `NEXT_PUBLIC_BACKEND_URL` if needed.
 
+## Deployment
+
+Day 7 deployment is configured but not performed by this branch. See
+`docs/DEPLOYMENT.md` for the Vercel, Render, and Modal checklist.
+
+The hosted backend should run with `SANDBOX_BACKEND=modal`, one active public run,
+per-client rate limits, a daily process-local model-run budget, and a workflow-boundary
+timeout. Set `NEXT_PUBLIC_BACKEND_URL` in Vercel to the deployed Render backend URL.
+
 ## Running Benchmarks
 
 Zero-shot baseline:
@@ -166,13 +175,15 @@ cd frontend && npm run lint && npm run typecheck && npm run build
 
 - Run snapshots are process-local and disappear when the backend restarts.
 - Cancellation is cooperative and stops at workflow boundaries.
-- Public deployment rate limits, spend controls, durable run storage, and one-run concurrency enforcement remain deployment work.
+- Public deployment controls are process-local. They protect the free demo from casual
+  overuse but reset when the Render process restarts or scales.
 - Per-agent token and cost telemetry is not yet captured by the benchmark runner.
 - The RAG layer is evaluated separately from the active 20-task algorithm benchmark.
 
 ## Project Docs
 
 - `docs/STATUS.md`: current implementation status, verification, risks, and handoff notes.
+- `docs/DEPLOYMENT.md`: public deployment configuration and smoke-test checklist.
 - `docs/ARCHITECTURE.md`: system architecture and deployment model.
 - `docs/DECISIONS.md`: accepted design decisions.
 - `docs/WEEK_PLAN.md`: phased revamp plan.
