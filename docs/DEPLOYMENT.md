@@ -26,6 +26,9 @@ small per-client rate limit, cancels at workflow boundaries after the configured
 and stops accepting new model-backed runs after the daily process-local run budget is
 exhausted.
 
+Render must deploy from `mjp/revamp-digital-forge` until this branch is merged to `main`.
+The repository pins Python in `runtime.txt`; do not use Render's default Python version.
+
 ## Frontend on Vercel
 
 Deploy `frontend/` as the Vercel project root. Set:
