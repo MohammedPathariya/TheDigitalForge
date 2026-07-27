@@ -346,6 +346,8 @@ function Landing({
         <div className="hero-meta">
           <HealthIndicator health={health} />
           <span className="meta-divider" />
+          <span>Free backend may take up to 60 seconds to wake</span>
+          <span className="meta-divider" />
           <span>Maximum 3 candidate attempts</span>
         </div>
       </section>
