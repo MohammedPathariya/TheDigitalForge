@@ -2,9 +2,10 @@
 
 ## Current phase
 
-Day 6, Rebuild the frontend, is complete on `mjp/revamp-digital-forge`.
-Days 1 through 6 remain consistent with the current week plan, architecture, and
-accepted decisions. Day 7 deployment work has not started.
+Day 7, Deploy and verify, is locally complete on `mjp/revamp-digital-forge`.
+Days 1 through 7 remain consistent with the current week plan, architecture, and
+accepted decisions. Live Vercel, Render, and Modal deployment has not been performed
+because it requires the user's hosted accounts, credentials, and explicit approval.
 
 ## Completed work
 
@@ -116,6 +117,14 @@ accepted decisions. Day 7 deployment work has not started.
 - Added benchmark checkpointing and guarded early-stop support. Each completed task now writes a
   task-level checkpoint before the aggregate report is finalized, and benchmark CLI runs can stop
   after a configured consecutive-failure streak unless the suite is already near completion.
+- Added Day 7 deployment readiness for the public demo. The backend now enforces one active
+  model-backed run per process, applies a small per-client rate limit to run-submission
+  endpoints, enforces a process-local daily model-run budget, and requests cooperative
+  cancellation after the configured run timeout.
+- Added deployment configuration and handoff docs: `render.yaml` for the Render Free FastAPI
+  service, `frontend/vercel.json` for the Vercel frontend project, root `.env.example` settings
+  for backend deployment controls, and `docs/DEPLOYMENT.md` with the Vercel, Render, Modal, and
+  smoke-test checklist.
 
 ## Verification performed
 
@@ -186,6 +195,18 @@ accepted decisions. Day 7 deployment work has not started.
   the issue was corrected and covered by a deterministic test, and another paid run was
   intentionally not started.
 - `git diff --check` passed after implementation.
+- `.venv/bin/python -m pytest tests/test_api.py tests/test_config.py -q` passed with 18 tests.
+- `.venv/bin/python -m ruff check backend tests` passed.
+- `.venv/bin/python -m ruff format --check backend tests` passed.
+- `.venv/bin/python -m mypy backend tests` passed with 33 source files checked.
+- `.venv/bin/python -m pytest -q` passed with 98 tests and five environment-dependent tests
+  skipped.
+- `npm run lint` passed for the Next.js frontend.
+- `npm run typecheck` passed with strict TypeScript checking.
+- `npm run build` produced static frontend routes for `/`, `/benchmark`, and `/icon.svg`.
+- `.venv/bin/python -m ruff check .` passed.
+- `.venv/bin/python -m ruff format --check .` passed with 48 files checked.
+- `.venv/bin/python -m mypy backend benchmark rag tests` passed with 48 source files checked.
 
 ## Known risks and deferred work
 
@@ -193,8 +214,9 @@ accepted decisions. Day 7 deployment work has not started.
   shared run storage is deferred until deployment requirements are finalized.
 - Cancellation is cooperative. A request stops at the next workflow boundary but cannot
   interrupt a CrewAI or model request already in progress.
-- The public one-run concurrency limit, rate limits, request timeouts, and model spending
-  controls remain Day 7 work. The local Day 6 run manager does not claim those protections.
+- Public deployment controls are process-local. The one-run gate, rate limit, timeout, and daily
+  run budget protect a single Render Free process from casual demo overuse, but they reset on
+  process restart and are not durable account-level spending controls.
 - The zero-shot `gpt-4` algorithm benchmark is now measured at 18/20 overall,
   with 9/10 easy and 9/10 medium tasks passing on historical benchmark v1.0.0.
   That suite overemphasized single-function algorithm tasks and is no longer the
@@ -233,8 +255,8 @@ accepted decisions. Day 7 deployment work has not started.
   cover normalization and workflow boundaries, but final live-model output quality remains
   to be reverified deliberately.
 - Modal capability construction remains verified against the installed SDK signature and
-  contract-level fakes, not an authenticated cloud sandbox build. Hosted verification remains
-  part of Day 7 deployment work.
+  contract-level fakes, not an authenticated cloud sandbox build. Hosted Modal execution still
+  must be verified during the live deployment smoke test.
 - Existing local Docker images must be rebuilt after sandbox capability changes; otherwise
   the pipeline now reports the stale image as a non-retryable system failure without consuming
   candidate attempts.
@@ -254,12 +276,14 @@ accepted decisions. Day 7 deployment work has not started.
 
 D008 now defines the shared offline sandbox capability contract and failure ownership for
 missing modules. Day 6 continues to implement D005 through Next.js, typed background run
-state, polling, and cancellation. The benchmark dashboard continues to follow D001 and D007
-by displaying only precomputed, measured artifacts and never triggering or inventing results.
+state, polling, and cancellation. Day 7 keeps D001's split between the bounded hosted demo and
+local or CI benchmark execution. The benchmark dashboard continues to follow D001 and D007 by
+displaying only precomputed, measured artifacts and never triggering or inventing results.
 
 ## Exact next task
 
-Add an independent final contract audit that cannot treat generated tests as the source of truth.
-It must compare the final application directly with the immutable request and block a successful
-status when repaired code drops or contradicts a requirement. Then finish benchmark checkpointing,
-usage telemetry, and spending limits before another paid pilot or any resume claim update.
+Deploy with the user present: create or connect the Vercel frontend, Render backend, and Modal
+sandbox credentials; set `NEXT_PUBLIC_BACKEND_URL`, `CORS_ORIGINS`, `OPENAI_API_KEY`, and Modal
+auth; run the smoke tests in `docs/DEPLOYMENT.md`; then record the live URLs and hosted
+verification result. After live deployment, add the independent final contract audit before
+another paid pilot or any resume claim update.

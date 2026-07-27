@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8501"]
     max_request_characters: int = Field(default=20_000, ge=1)
     max_attempts: int = Field(default=3, ge=1, le=3)
+    max_active_runs: int = Field(default=1, ge=1, le=1)
+    max_daily_model_runs: int = Field(default=20, ge=1, le=100)
+    rate_limit_requests: int = Field(default=10, ge=1, le=100)
+    rate_limit_window_seconds: float = Field(default=60.0, gt=0, le=3600)
+    run_timeout_seconds: float = Field(default=300.0, gt=0, le=900)
     sandbox_backend: Literal["docker", "modal"] = "docker"
     docker_sandbox_image: str = "digital-forge-sandbox:py311"
     modal_sandbox_app: str = "digital-forge-sandbox"

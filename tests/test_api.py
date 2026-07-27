@@ -69,6 +69,17 @@ class CancellableRunner(FakeRunner):
         raise TimeoutError("Cancellation was not requested.")
 
 
+class SlowRunner(FakeRunner):
+    def run(self) -> RunResponse:
+        while not self.is_cancel_requested():
+            time.sleep(0.001)
+        return RunResponse(
+            run_id=self.run_id,
+            status=RunStatus.cancelled,
+            report="Run cancelled by timeout.",
+        )
+
+
 def test_health() -> None:
     client = TestClient(create_app(Settings(), runner_factory=FakeRunner))
 
@@ -118,6 +129,17 @@ def test_run_rejects_oversized_request() -> None:
     assert response.status_code == 413
 
 
+def test_run_endpoint_rate_limits_by_client() -> None:
+    settings = Settings(rate_limit_requests=1, rate_limit_window_seconds=60)
+    client = TestClient(create_app(settings, runner_factory=FakeRunner))
+
+    assert client.post("/run", json={"request": "build a parser"}).status_code == 200
+    response = client.post("/run", json={"request": "build another parser"})
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == "Rate limit exceeded."
+
+
 def test_polling_run_api_starts_and_reaches_a_terminal_state() -> None:
     client = TestClient(create_app(Settings(), runner_factory=FakeRunner))
 
@@ -135,6 +157,61 @@ def test_polling_run_api_starts_and_reaches_a_terminal_state() -> None:
 
     assert snapshot.status_code == 200
     assert snapshot.json()["report"] == "Completed: build a parser"
+
+
+def test_polling_run_api_rejects_concurrent_public_runs() -> None:
+    client = TestClient(create_app(Settings(), runner_factory=CancellableRunner))
+
+    first = client.post("/runs", json={"request": "build a parser"})
+    second = client.post("/runs", json={"request": "build another parser"})
+
+    assert first.status_code == 202
+    assert second.status_code == 409
+    assert second.json()["detail"] == "Another run is already active."
+
+
+def test_polling_run_api_enforces_daily_model_run_budget() -> None:
+    settings = Settings(max_daily_model_runs=1)
+    client = TestClient(create_app(settings, runner_factory=FakeRunner))
+
+    first = client.post("/runs", json={"request": "build a parser"})
+    assert first.status_code == 202
+    run_id = first.json()["run_id"]
+    for _ in range(100):
+        snapshot = client.get(f"/runs/{run_id}")
+        if snapshot.json()["status"] == "completed":
+            break
+        time.sleep(0.001)
+    response = client.post("/runs", json={"request": "build another parser"})
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == "Daily model run limit exceeded."
+
+
+def test_sync_run_endpoint_uses_public_run_budget() -> None:
+    settings = Settings(max_daily_model_runs=1)
+    client = TestClient(create_app(settings, runner_factory=FakeRunner))
+
+    assert client.post("/run", json={"request": "build a parser"}).status_code == 200
+    response = client.post("/run", json={"request": "build another parser"})
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == "Daily model run limit exceeded."
+
+
+def test_polling_run_api_cancels_after_configured_timeout() -> None:
+    settings = Settings(run_timeout_seconds=0.01)
+    client = TestClient(create_app(settings, runner_factory=SlowRunner))
+    run_id = client.post("/runs", json={"request": "build a parser"}).json()["run_id"]
+
+    for _ in range(100):
+        snapshot = client.get(f"/runs/{run_id}")
+        if snapshot.json()["status"] == "cancelled":
+            break
+        time.sleep(0.01)
+
+    assert snapshot.json()["status"] == "cancelled"
+    assert snapshot.json()["report"] == "Run cancelled by timeout."
 
 
 def test_polling_run_api_returns_not_found() -> None:
