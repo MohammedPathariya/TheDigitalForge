@@ -1,8 +1,10 @@
 # Deployment
 
 Day 7 deployment uses Vercel for the Next.js frontend, Render Free for the FastAPI
-backend, and Modal for hosted sandbox execution. Do not run a public benchmark from the
-hosted demo; benchmark execution remains local or CI-only.
+backend, and Modal for hosted sandbox execution. The frontend is live at
+`https://the-digital-forge-jade.vercel.app/`, and its health check currently reports the
+Render backend as online. Do not run a public benchmark from the hosted demo; benchmark
+execution remains local or CI-only.
 
 ## Backend on Render
 
@@ -11,7 +13,7 @@ Use `render.yaml` as the backend blueprint. Set these environment variables in R
 ```text
 OPENAI_API_KEY=<secret>
 OPENAI_MODEL_NAME=gpt-4o-mini
-CORS_ORIGINS=["https://<vercel-project>.vercel.app"]
+CORS_ORIGINS=["https://the-digital-forge-jade.vercel.app"]
 SANDBOX_BACKEND=modal
 MODAL_SANDBOX_APP=digital-forge-sandbox
 MAX_ACTIVE_RUNS=1
@@ -34,7 +36,7 @@ blueprint also sets `PYTHON_VERSION=3.11.12`. Do not use Render's default Python
 Deploy `frontend/` as the Vercel project root. Set:
 
 ```text
-NEXT_PUBLIC_BACKEND_URL=https://<render-service>.onrender.com
+NEXT_PUBLIC_BACKEND_URL=https://digital-forge-api.onrender.com
 ```
 
 The frontend build should run `npm ci` and `npm run build`.
@@ -54,8 +56,8 @@ infrastructure configuration error.
 After deployment, verify:
 
 ```bash
-curl -fsS https://<render-service>.onrender.com/health
-curl -fsS https://<render-service>.onrender.com/benchmarks
+curl -fsS https://digital-forge-api.onrender.com/health
+curl -fsS https://digital-forge-api.onrender.com/benchmarks
 ```
 
 Then open the Vercel URL and verify:

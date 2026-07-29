@@ -113,8 +113,11 @@ The frontend defaults to `http://localhost:3000` and calls the backend at `http:
 
 ## Deployment
 
-Day 7 deployment is configured but not performed by this branch. See
-`docs/DEPLOYMENT.md` for the Vercel, Render, and Modal checklist.
+The frontend is deployed on Vercel at
+`https://the-digital-forge-jade.vercel.app/` and is configured to use the Render
+backend at `https://digital-forge-api.onrender.com`. The hosted frontend health check
+was verified on 2026-07-29. See `docs/DEPLOYMENT.md` for the Vercel, Render, and Modal
+configuration and smoke-test checklist.
 
 The hosted backend should run with `SANDBOX_BACKEND=modal`, one active public run,
 per-client rate limits, a daily process-local model-run budget, and a workflow-boundary
@@ -192,7 +195,7 @@ cd frontend && npm run lint && npm run typecheck && npm run build
 
 **The Digital Forge** is a fully autonomous software development pipeline powered by a crew of specialized AI agents. Give it a natural language request, and the crew will work together to understand the requirements, write the code, create tests, and even debug their own work to deliver a final, validated solution.
 
-**Live Demo:** [**https://thedigitalforge.onrender.com/**](https://thedigitalforge.onrender.com/)
+**Live Demo:** [**https://the-digital-forge-jade.vercel.app/**](https://the-digital-forge-jade.vercel.app/)
 
 ---
 

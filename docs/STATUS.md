@@ -2,10 +2,16 @@
 
 ## Current phase
 
-Day 7, Deploy and verify, is locally complete on `mjp/revamp-digital-forge`.
-Days 1 through 7 remain consistent with the current week plan, architecture, and
-accepted decisions. Live Vercel, Render, and Modal deployment has not been performed
-because it requires the user's hosted accounts, credentials, and explicit approval.
+Day 7, Deploy and verify, is complete on `mjp/revamp-digital-forge`.
+The Vercel frontend is live at
+`https://the-digital-forge-jade.vercel.app/`. On 2026-07-29, the hosted home page
+and `/benchmark` page loaded successfully, and the home page reported `Backend online`
+after its health check. The frontend is configured to use the Render backend at
+`https://digital-forge-api.onrender.com`.
+
+The Modal sandbox path and a complete paid hosted run have not been verified in this
+pass. Do not describe hosted code execution as fully verified until that smoke test
+reaches a terminal state.
 
 ## Completed work
 
@@ -148,6 +154,9 @@ because it requires the user's hosted accounts, credentials, and explicit approv
   smoke test also passed without submitting another paid model request.
 - `.venv/bin/pytest -q` passed with 86 tests and five environment-dependent tests skipped
   after the benchmark-driven orchestration fixes.
+- Hosted Vercel verification on 2026-07-29 loaded `/` and `/benchmark`. The home page
+  reported `Backend online` after the configured backend health check, and the benchmark
+  page displayed the immutable v1.1.0 report at 16/20 overall, 9/10 easy, and 7/10 medium.
 - `ruff check backend benchmark rag tests`, `ruff format --check backend benchmark rag tests`,
   `mypy backend benchmark rag tests`, and `git diff --check` passed after those fixes.
 - Replayed deterministic validation against the six interrupted v1.1.0 candidates without
