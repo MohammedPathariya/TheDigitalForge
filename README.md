@@ -4,7 +4,7 @@ The Digital Forge is a research portfolio project for studying whether a special
 
 The system accepts a natural-language request, creates a technical brief and typed development plan, generates application code and tests, executes the candidate in an isolated sandbox, and performs bounded repairs when execution fails. Each run exposes its intermediate artifacts and evidence for inspection.
 
-Live demo: [the-digital-forge-jade.vercel.app](https://the-digital-forge-jade.vercel.app/)
+[![Live app](https://img.shields.io/badge/Live_app_%E2%86%97-e8f1fb?style=for-the-badge&labelColor=2f6f9f&color=e8f1fb)](https://the-digital-forge-jade.vercel.app/) [![API health](https://img.shields.io/badge/API_health_%E2%86%97-eaf2ef?style=for-the-badge&labelColor=4f7d6b&color=eaf2ef)](https://digital-forge-api.onrender.com/health)
 
 ## Research framing
 
